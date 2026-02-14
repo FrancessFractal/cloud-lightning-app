@@ -59,21 +59,21 @@ def _is_cache_fresh(path: Path) -> bool:
     return age < CACHE_MAX_AGE_SECONDS
 
 
-def read_result_cache(station_id: str) -> dict | None:
-    """Return cached aggregated result for *station_id*, or None if stale/missing."""
+def read_result_cache(station_id: str, resolution: str = "month") -> dict | None:
+    """Return cached aggregated result for *station_id* at *resolution*, or None if stale/missing."""
     result_cache = CACHE_DIR / "results"
     result_cache.mkdir(exist_ok=True)
-    result_file = result_cache / f"station_{station_id}.json"
+    result_file = result_cache / f"station_{station_id}_{resolution}.json"
     if _is_cache_fresh(result_file):
         return json.loads(result_file.read_text(encoding="utf-8"))
     return None
 
 
-def write_result_cache(station_id: str, data: dict) -> None:
+def write_result_cache(station_id: str, resolution: str, data: dict) -> None:
     """Persist an aggregated result dict to the file cache."""
     result_cache = CACHE_DIR / "results"
     result_cache.mkdir(exist_ok=True)
-    result_file = result_cache / f"station_{station_id}.json"
+    result_file = result_cache / f"station_{station_id}_{resolution}.json"
     result_file.write_text(json.dumps(data), encoding="utf-8")
 
 

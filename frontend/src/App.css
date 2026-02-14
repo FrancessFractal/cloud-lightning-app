@@ -277,6 +277,50 @@ h2 {
   margin: 0 0 0.6em;
 }
 
+/* --- Interpolation notice --- */
+.interpolation-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.faded-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 14px;
+  border-radius: 3px;
+  background: rgba(100, 126, 234, 0.22);
+  border: 1px dashed rgba(100, 126, 234, 0.45);
+  flex-shrink: 0;
+}
+
+/* --- Custom tooltip --- */
+.custom-tooltip {
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.6em 0.85em;
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: #ddd;
+}
+
+.tooltip-label {
+  margin: 0 0 0.25em;
+  font-weight: 600;
+}
+
+.tooltip-row {
+  margin: 0;
+}
+
+.tooltip-est-note {
+  margin: 0.35em 0 0;
+  font-size: 0.85em;
+  color: #999;
+  font-style: italic;
+}
+
 /* --- Station explorer --- */
 .explorer-stats {
   display: flex;
@@ -427,6 +471,44 @@ h2 {
 .badge-no {
   background: rgba(255, 167, 38, 0.15);
   color: #ffa726;
+}
+
+/* --- Resolution toggle --- */
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1em;
+  margin-bottom: 0.75em;
+}
+
+.resolution-toggle {
+  display: flex;
+  gap: 0.25em;
+  flex-shrink: 0;
+}
+
+.res-btn {
+  padding: 0.35em 0.8em;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #999;
+  font-size: 0.8em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.res-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #bbb;
+}
+
+.res-btn.active {
+  background: rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.4);
+  color: #b0b8e8;
 }
 
 /* --- Station weights (under chart) --- */

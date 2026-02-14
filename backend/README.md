@@ -11,9 +11,9 @@ climate estimate for that location.
 | Module | Responsibility | Public functions | Dependencies |
 |---|---|---|---|
 | `app.py` | Flask routes — HTTP request/response layer only | Routes: `/api/search`, `/api/stations`, `/api/all-stations`, `/api/location-weather`, `/api/weather-data/<id>` | `geocoding`, `stations`, `weather` |
-| `weather.py` | Core business logic — per-station aggregation and multi-station IDW interpolation | `get_monthly_weather_data()`, `get_location_weather()` | `smhi_client`, `stations` |
+| `weather.py` | Core business logic — per-station aggregation (day/month/year resolution) and multi-station IDW interpolation | `get_station_weather_data(station_id, resolution)`, `get_location_weather(lat, lng, resolution)` | `smhi_client`, `stations` |
 | `stations.py` | Station discovery, listing, geographic math, and adaptive station selection | `haversine_km()`, `get_nearby_stations()`, `get_all_stations()`, `select_stations()` | `smhi_client` |
-| `smhi_client.py` | SMHI API data access — HTTP calls, CSV parsing, file cache | `fetch_station_list()`, `fetch_station_csv()`, `parse_smhi_csv()`, `read_result_cache()`, `write_result_cache()` | (external: SMHI API) |
+| `smhi_client.py` | SMHI API data access — HTTP calls, CSV parsing, file cache | `fetch_station_list()`, `fetch_station_csv()`, `parse_smhi_csv()`, `read_result_cache(station_id, resolution)`, `write_result_cache(station_id, resolution, data)` | (external: SMHI API) |
 | `geocoding.py` | Address-to-coordinates via Nominatim (OpenStreetMap) | `geocode_address()` | (external: Nominatim API) |
 
 ## Dependency flow
@@ -36,7 +36,8 @@ with no internal dependencies.
   `PARAM_PRESENT_WEATHER`), WMO lightning codes (`LIGHTNING_CODES`), and
   `MONTH_NAMES`.
 - **File caching** is handled entirely by `smhi_client.py` under the `cache/`
-  directory. Raw CSVs go in `cache/csv/`, aggregated results in `cache/results/`.
+  directory. Raw CSVs go in `cache/csv/`, aggregated results in
+  `cache/results/` (keyed by `station_{id}_{resolution}.json`).
   Cache freshness is 7 days (`CACHE_MAX_AGE_SECONDS`).
 - **Station selection** uses adaptive inverse distance weighting (power=2) with
   a 2% weight threshold and a minimum of 2 stations. The constants

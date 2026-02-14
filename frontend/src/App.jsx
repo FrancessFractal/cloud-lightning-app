@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import AddressSearch from './components/AddressSearch'
 import WeatherChart from './components/WeatherChart'
 import StationExplorer from './components/StationExplorer'
@@ -10,17 +10,19 @@ function App() {
   const [weatherData, setWeatherData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [resolution, setResolution] = useState('month')
+  const locationRef = useRef(null)
 
-  const handleLocationFound = async (loc) => {
-    setLocation(loc)
+  const fetchWeather = async (loc, res) => {
     setWeatherData(null)
     setError(null)
     setLoading(true)
 
     try {
-      const res = await fetch(`/api/location-weather?lat=${loc.lat}&lng=${loc.lng}`)
-      const data = await res.json()
-      if (!res.ok || data.error) {
+      const url = `/api/location-weather?lat=${loc.lat}&lng=${loc.lng}&resolution=${res}`
+      const resp = await fetch(url)
+      const data = await resp.json()
+      if (!resp.ok || data.error) {
         setError(data.error || 'Failed to load weather data.')
       } else {
         setWeatherData(data)
@@ -29,6 +31,19 @@ function App() {
       setError('Failed to connect to backend.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleLocationFound = (loc) => {
+    setLocation(loc)
+    locationRef.current = loc
+    fetchWeather(loc, resolution)
+  }
+
+  const handleResolutionChange = (res) => {
+    setResolution(res)
+    if (locationRef.current) {
+      fetchWeather(locationRef.current, res)
     }
   }
 
@@ -80,7 +95,12 @@ function App() {
             </div>
           )}
 
-          <WeatherChart data={weatherData} locationName={location?.display_name} />
+          <WeatherChart
+            data={weatherData}
+            locationName={location?.display_name}
+            resolution={resolution}
+            onResolutionChange={handleResolutionChange}
+          />
         </>
       )}
 

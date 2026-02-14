@@ -3,7 +3,7 @@ from flask_cors import CORS
 
 from geocoding import autocomplete_address, geocode_address
 from stations import get_all_stations, get_nearby_stations
-from weather import get_location_weather, get_monthly_weather_data
+from weather import get_location_weather, get_station_weather_data
 
 app = Flask(__name__)
 CORS(app)
@@ -74,8 +74,12 @@ def location_weather():
     except (KeyError, ValueError):
         return jsonify({"error": "Missing or invalid 'lat' and 'lng' parameters"}), 400
 
+    resolution = request.args.get("resolution", "month")
+    if resolution not in ("day", "month", "year"):
+        resolution = "month"
+
     try:
-        data = get_location_weather(lat, lng)
+        data = get_location_weather(lat, lng, resolution=resolution)
     except Exception as e:
         return jsonify({"error": f"Failed to compute location weather: {e}"}), 500
 
@@ -84,9 +88,13 @@ def location_weather():
 
 @app.route("/api/weather-data/<station_id>")
 def weather_data(station_id):
-    """Return monthly cloud coverage and lightning data for a station."""
+    """Return cloud coverage and lightning data for a station."""
+    resolution = request.args.get("resolution", "month")
+    if resolution not in ("day", "month", "year"):
+        resolution = "month"
+
     try:
-        data = get_monthly_weather_data(station_id)
+        data = get_station_weather_data(station_id, resolution=resolution)
     except Exception as e:
         return jsonify({"error": f"Failed to fetch data: {e}"}), 500
 
