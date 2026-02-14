@@ -3,8 +3,7 @@ import AddressSearch from './components/AddressSearch'
 import InsightCards from './components/InsightCards'
 import CloudChartPanel from './components/CloudChartPanel'
 import LightningChartPanel from './components/LightningChartPanel'
-import DataConfidenceBadge from './components/DataConfidenceBadge'
-import DataSourcesDrawer from './components/DataSourcesDrawer'
+import DataQualityBadge from './components/DataQualityBadge'
 import StationExplorer from './components/StationExplorer'
 import './App.css'
 
@@ -256,6 +255,12 @@ function App() {
                 activeLabel={activeLabel}
                 onHover={handleHover}
               />
+              <DataQualityBadge
+                title="Cloud Coverage"
+                dim={weatherData.quality?.cloud}
+                stations={weatherData.cloud_stations}
+                center={location ? [location.lat, location.lng] : null}
+              />
 
               <LightningChartPanel
                 data={weatherData}
@@ -263,6 +268,14 @@ function App() {
                 activeLabel={activeLabel}
                 onHover={handleHover}
               />
+              {weatherData.has_lightning_data && (
+                <DataQualityBadge
+                  title="Lightning"
+                  dim={weatherData.quality?.lightning}
+                  stations={weatherData.lightning_stations}
+                  center={location ? [location.lat, location.lng] : null}
+                />
+              )}
 
               {!weatherData.has_lightning_data && (
                 <p className="notice">
@@ -271,19 +284,6 @@ function App() {
                 </p>
               )}
             </div>
-          )}
-
-          {/* Data quality badge */}
-          {weatherData && (
-            <DataConfidenceBadge quality={weatherData.quality} />
-          )}
-
-          {/* Data sources drawer */}
-          {weatherData && (
-            <DataSourcesDrawer
-              stations={weatherData.stations}
-              center={location ? [location.lat, location.lng] : null}
-            />
           )}
         </>
       )}

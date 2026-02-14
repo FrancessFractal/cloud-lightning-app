@@ -269,116 +269,190 @@ def get_monthly_weather_data(station_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _download_csvs(station_ids: list[str]) -> None:
+def _download_csvs_for_param(param_id: int, station_ids: list[str]) -> None:
     """Download CSVs for multiple stations in parallel (disk only).
 
     Only downloads to the file cache — does NOT parse into memory.
-    This keeps memory usage minimal on small instances while still
-    parallelising the slow network I/O.
     """
-    tasks = []
-    for sid in station_ids:
-        tasks.append((PARAM_CLOUD_COVERAGE, sid))
-        tasks.append((PARAM_PRESENT_WEATHER, sid))
-
-    def _fetch(param_id, sid):
+    def _fetch(sid):
         try:
             fetch_station_csv(param_id, sid)
         except Exception:
-            pass  # individual station failures are handled later
+            pass
 
     with ThreadPoolExecutor(max_workers=3) as pool:
-        futures = [pool.submit(_fetch, p, s) for p, s in tasks]
+        futures = [pool.submit(_fetch, s) for s in station_ids]
         for f in as_completed(futures):
             f.result()
 
 
-def get_location_weather(lat: float, lng: float, resolution: str = "month") -> dict:
-    """Estimate weather patterns at an exact location.
+# ---------------------------------------------------------------------------
+# Blending helpers
+# ---------------------------------------------------------------------------
 
-    1. Fetches a pool of nearby station candidates.
-    2. Adaptively selects which stations to use.
-    3. Downloads CSVs for all stations in parallel (if not cached).
-    4. Aggregates each station at the given *resolution*.
-    5. Blends values using inverse distance weighting.
+
+def _blend_cloud_point(label, entries):
+    """Blend cloud coverage for one data point. entries = [(weight, pt), ...]"""
+    total = 0.0
+    w_sum = 0.0
+    obs = 0
+    for w, pt in entries:
+        obs += pt.get("obs_count", 0)
+        if pt["cloud_coverage_avg"] is not None:
+            total += pt["cloud_coverage_avg"] * w
+            w_sum += w
+    return {
+        "label": label,
+        "cloud_coverage_avg": round(total / w_sum, 1) if w_sum > 0 else None,
+        "obs_count": obs,
+    }
+
+
+def _blend_lightning_point(label, entries):
+    """Blend lightning fields for one data point. entries = [(weight, pt), ...]"""
+    prob_sum = 0.0
+    prob_w = 0.0
+    lower_sum = 0.0
+    lower_w = 0.0
+    upper_sum = 0.0
+    upper_w = 0.0
+    obs = 0
+    for w, pt in entries:
+        obs += pt.get("obs_count", 0)
+        if pt["lightning_probability"] is not None:
+            prob_sum += pt["lightning_probability"] * w
+            prob_w += w
+        if pt.get("lightning_lower") is not None:
+            lower_sum += pt["lightning_lower"] * w
+            lower_w += w
+        if pt.get("lightning_upper") is not None:
+            upper_sum += pt["lightning_upper"] * w
+            upper_w += w
+    return {
+        "label": label,
+        "lightning_probability": round(prob_sum / prob_w, 2) if prob_w > 0 else None,
+        "lightning_lower": round(lower_sum / lower_w, 2) if lower_w > 0 else None,
+        "lightning_upper": round(upper_sum / upper_w, 2) if upper_w > 0 else None,
+        "lightning_obs_count": obs,
+    }
+
+
+def _blend_fixed_cloud(station_data):
+    """Blend cloud data from stations with a fixed number of points (day/month)."""
+    num_points = len(station_data[0]["data"]["points"])
+    points = []
+    for idx in range(num_points):
+        label = station_data[0]["data"]["points"][idx]["label"]
+        entries = [(sd["weight"], sd["data"]["points"][idx]) for sd in station_data]
+        points.append(_blend_cloud_point(label, entries))
+    return points
+
+
+def _blend_fixed_lightning(station_data):
+    """Blend lightning data from stations with a fixed number of points (day/month)."""
+    num_points = len(station_data[0]["data"]["points"])
+    points = []
+    for idx in range(num_points):
+        label = station_data[0]["data"]["points"][idx]["label"]
+        entries = [(sd["weight"], sd["data"]["points"][idx]) for sd in station_data]
+        points.append(_blend_lightning_point(label, entries))
+    return points
+
+
+def _blend_yearly_cloud(station_data):
+    """Blend cloud data for yearly resolution (variable-length point arrays)."""
+    all_labels = {}
+    for sd in station_data:
+        for pt in sd["data"]["points"]:
+            all_labels[pt["label"]] = True
+
+    lookups = []
+    for sd in station_data:
+        lookup = {pt["label"]: pt for pt in sd["data"]["points"]}
+        lookups.append((sd["weight"], lookup))
+
+    points = []
+    for label in sorted(all_labels.keys()):
+        entries = []
+        for w, lookup in lookups:
+            pt = lookup.get(label)
+            if pt is not None:
+                entries.append((w, pt))
+        points.append(_blend_cloud_point(label, entries))
+    return points
+
+
+def _blend_yearly_lightning(station_data):
+    """Blend lightning data for yearly resolution (variable-length point arrays)."""
+    all_labels = {}
+    for sd in station_data:
+        for pt in sd["data"]["points"]:
+            all_labels[pt["label"]] = True
+
+    lookups = []
+    for sd in station_data:
+        lookup = {pt["label"]: pt for pt in sd["data"]["points"]}
+        lookups.append((sd["weight"], lookup))
+
+    points = []
+    for label in sorted(all_labels.keys()):
+        entries = []
+        for w, lookup in lookups:
+            pt = lookup.get(label)
+            if pt is not None:
+                entries.append((w, pt))
+        points.append(_blend_lightning_point(label, entries))
+    return points
+
+
+def _merge_points(cloud_points, lightning_points):
+    """Merge blended cloud and lightning point lists into unified points.
+
+    Cloud points are the primary axis; lightning values are joined by label.
     """
-    if resolution not in VALID_RESOLUTIONS:
-        resolution = "month"
+    lightning_lookup = {p["label"]: p for p in lightning_points} if lightning_points else {}
 
-    nearby = get_nearby_stations(lat, lng, count=10)
+    merged = []
+    for cp in cloud_points:
+        lp = lightning_lookup.get(cp["label"], {})
+        merged.append({
+            "label": cp["label"],
+            "cloud_coverage_avg": cp["cloud_coverage_avg"],
+            "lightning_probability": lp.get("lightning_probability"),
+            "lightning_lower": lp.get("lightning_lower"),
+            "lightning_upper": lp.get("lightning_upper"),
+            "obs_count": cp.get("obs_count", 0),
+        })
+    return merged
 
-    if not nearby:
-        return {
-            "has_lightning_data": False,
-            "resolution": resolution,
-            "points": [],
-            "stations": [],
-            "quality": dict(EMPTY_QUALITY),
-        }
 
-    selected = select_stations(nearby)
+# ---------------------------------------------------------------------------
+# Helpers for the dual pipeline
+# ---------------------------------------------------------------------------
 
-    # --- Parallel CSV download (only for cache misses) ------------------------
-    # Download CSV files to disk for any station that doesn't have a result
-    # cache yet.  This parallelises the slow network I/O without loading
-    # large CSVs into memory.
-    uncached_ids = [
-        sd["station"]["id"]
-        for sd in selected
-        if read_result_cache(sd["station"]["id"], resolution) is None
-    ]
-    if uncached_ids:
-        _download_csvs(uncached_ids)
 
-    # Fetch per-station data.  Stations with a result cache are instant.
-    # For uncached stations, get_station_weather_data reads + parses + aggregates
-    # one station at a time, keeping memory usage bounded.
-    station_data = []
+def _normalize_weights(station_data: list[dict]) -> None:
+    """Normalize raw_weight → weight in-place."""
+    total = sum(sd["raw_weight"] for sd in station_data)
+    for sd in station_data:
+        sd["weight"] = sd["raw_weight"] / total
+
+
+def _fetch_station_data(selected, resolution):
+    """Fetch per-station aggregated data for a list of selected stations."""
+    result = []
     for sd in selected:
         try:
             data = get_station_weather_data(sd["station"]["id"], resolution)
-            station_data.append({**sd, "data": data})
+            result.append({**sd, "data": data})
         except Exception:
             pass
+    return result
 
-    if not station_data:
-        return {
-            "has_lightning_data": False,
-            "resolution": resolution,
-            "points": [],
-            "stations": [],
-            "quality": dict(EMPTY_QUALITY),
-        }
 
-    # Normalize weights
-    total_weight = sum(sd["raw_weight"] for sd in station_data)
-    for sd in station_data:
-        sd["weight"] = sd["raw_weight"] / total_weight
-
-    has_lightning = any(sd["data"].get("has_lightning_data") for sd in station_data)
-
-    if resolution == "year":
-        points = _blend_yearly(station_data, has_lightning)
-    else:
-        points = _blend_fixed(station_data, has_lightning)
-
-    # Quality is always assessed against yearly data so it stays stable
-    # regardless of which resolution the user is viewing.  Yearly is the
-    # right baseline because each year stands on its own — gaps in the
-    # historical record (e.g. no data for 2006-2007) show up as missing
-    # points, whereas monthly/daily averages across years hide them.
-    if resolution == "year":
-        quality_points = points
-    else:
-        yearly_data = []
-        for sd in station_data:
-            ydata = get_station_weather_data(sd["station"]["id"], "year")
-            yearly_data.append({**sd, "data": ydata})
-        quality_points = _blend_yearly(yearly_data, has_lightning)
-
-    quality = compute_quality(quality_points, "year", station_data, lat, lng)
-
-    stations_info = [
+def _stations_info(station_data):
+    """Build the JSON-serialisable station info list."""
+    return [
         {
             "id": sd["station"]["id"],
             "name": sd["station"]["name"],
@@ -390,87 +464,131 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
         for sd in station_data
     ]
 
+
+# ---------------------------------------------------------------------------
+# Public: location-based weather estimation (dual pipeline)
+# ---------------------------------------------------------------------------
+
+
+def get_location_weather(lat: float, lng: float, resolution: str = "month") -> dict:
+    """Estimate weather patterns at an exact location.
+
+    Uses two independent station pipelines:
+      - Cloud coverage: nearest stations with PARAM_CLOUD_COVERAGE
+      - Lightning: nearest stations with PARAM_PRESENT_WEATHER
+
+    Each pipeline does its own station discovery, adaptive selection, weight
+    normalisation, and blending.  Results are merged into a single point
+    array for the frontend.
+    """
+    if resolution not in VALID_RESOLUTIONS:
+        resolution = "month"
+
+    # --- 1. Station discovery (independent per parameter) --------------------
+    cloud_nearby = get_nearby_stations(lat, lng, parameter_id=PARAM_CLOUD_COVERAGE, count=10)
+    lightning_nearby = get_nearby_stations(lat, lng, parameter_id=PARAM_PRESENT_WEATHER, count=10)
+
+    if not cloud_nearby:
+        return {
+            "has_lightning_data": False,
+            "resolution": resolution,
+            "points": [],
+            "cloud_stations": [],
+            "lightning_stations": [],
+            "quality": dict(EMPTY_QUALITY),
+        }
+
+    # --- 2. Adaptive station selection (independent) -------------------------
+    cloud_selected = select_stations(cloud_nearby)
+    lightning_selected = select_stations(lightning_nearby) if lightning_nearby else []
+
+    # --- 3. Parallel CSV download (deduplicated) -----------------------------
+    all_ids = set()
+    for sd in cloud_selected:
+        if read_result_cache(sd["station"]["id"], resolution) is None:
+            all_ids.add(sd["station"]["id"])
+    for sd in lightning_selected:
+        if read_result_cache(sd["station"]["id"], resolution) is None:
+            all_ids.add(sd["station"]["id"])
+
+    if all_ids:
+        # Download both param CSVs for all stations in parallel
+        tasks = []
+        for sid in all_ids:
+            tasks.append((PARAM_CLOUD_COVERAGE, sid))
+            tasks.append((PARAM_PRESENT_WEATHER, sid))
+
+        def _fetch(param_id, sid):
+            try:
+                fetch_station_csv(param_id, sid)
+            except Exception:
+                pass
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = [pool.submit(_fetch, p, s) for p, s in tasks]
+            for f in as_completed(futures):
+                f.result()
+
+    # --- 4. Fetch per-station aggregated data --------------------------------
+    cloud_data = _fetch_station_data(cloud_selected, resolution)
+    lightning_data = _fetch_station_data(lightning_selected, resolution)
+
+    if not cloud_data:
+        return {
+            "has_lightning_data": False,
+            "resolution": resolution,
+            "points": [],
+            "cloud_stations": [],
+            "lightning_stations": [],
+            "quality": dict(EMPTY_QUALITY),
+        }
+
+    # --- 5. Normalise weights independently ----------------------------------
+    _normalize_weights(cloud_data)
+    if lightning_data:
+        _normalize_weights(lightning_data)
+
+    has_lightning = len(lightning_data) > 0
+
+    # --- 6. Blend cloud and lightning independently --------------------------
+    if resolution == "year":
+        cloud_points = _blend_yearly_cloud(cloud_data)
+        lightning_points = _blend_yearly_lightning(lightning_data) if has_lightning else []
+    else:
+        cloud_points = _blend_fixed_cloud(cloud_data)
+        lightning_points = _blend_fixed_lightning(lightning_data) if has_lightning else []
+
+    points = _merge_points(cloud_points, lightning_points)
+
+    # --- 7. Quality assessment (yearly baseline, independent per dimension) --
+    if resolution == "year":
+        cloud_yearly_points = cloud_points
+        lightning_yearly_points = lightning_points
+    else:
+        cloud_yearly_data = _fetch_station_data(cloud_selected, "year")
+        if cloud_yearly_data:
+            _normalize_weights(cloud_yearly_data)
+        cloud_yearly_points = _blend_yearly_cloud(cloud_yearly_data) if cloud_yearly_data else []
+
+        if has_lightning:
+            lightning_yearly_data = _fetch_station_data(lightning_selected, "year")
+            if lightning_yearly_data:
+                _normalize_weights(lightning_yearly_data)
+            lightning_yearly_points = _blend_yearly_lightning(lightning_yearly_data) if lightning_yearly_data else []
+        else:
+            lightning_yearly_points = []
+
+    quality = compute_quality(
+        cloud_yearly_points, lightning_yearly_points, "year",
+        cloud_data, lightning_data,
+        lat, lng,
+    )
+
     return {
         "has_lightning_data": has_lightning,
         "resolution": resolution,
         "points": points,
-        "stations": stations_info,
+        "cloud_stations": _stations_info(cloud_data),
+        "lightning_stations": _stations_info(lightning_data),
         "quality": quality,
     }
-
-
-def _blend_point(label, station_entries, has_lightning):
-    """Blend a single data point across weighted station entries.
-
-    Each entry is (weight, point_dict).
-    """
-    cloud_sum = 0.0
-    cloud_w = 0.0
-    lightning_sum = 0.0
-    lightning_w = 0.0
-    lower_sum = 0.0
-    lower_w = 0.0
-    upper_sum = 0.0
-    upper_w = 0.0
-    obs_total = 0
-
-    for w, pt in station_entries:
-        obs_total += pt.get("obs_count", 0)
-
-        if pt["cloud_coverage_avg"] is not None:
-            cloud_sum += pt["cloud_coverage_avg"] * w
-            cloud_w += w
-        if pt["lightning_probability"] is not None:
-            lightning_sum += pt["lightning_probability"] * w
-            lightning_w += w
-        if pt.get("lightning_lower") is not None:
-            lower_sum += pt["lightning_lower"] * w
-            lower_w += w
-        if pt.get("lightning_upper") is not None:
-            upper_sum += pt["lightning_upper"] * w
-            upper_w += w
-
-    return {
-        "label": label,
-        "cloud_coverage_avg": round(cloud_sum / cloud_w, 1) if cloud_w > 0 else None,
-        "lightning_probability": round(lightning_sum / lightning_w, 2) if lightning_w > 0 else None,
-        "lightning_lower": round(lower_sum / lower_w, 2) if lower_w > 0 else None,
-        "lightning_upper": round(upper_sum / upper_w, 2) if upper_w > 0 else None,
-        "obs_count": obs_total,
-    }
-
-
-def _blend_fixed(station_data, has_lightning):
-    """Blend stations with a fixed number of points (day or month)."""
-    num_points = len(station_data[0]["data"]["points"])
-    points = []
-    for idx in range(num_points):
-        label = station_data[0]["data"]["points"][idx]["label"]
-        entries = [
-            (sd["weight"], sd["data"]["points"][idx]) for sd in station_data
-        ]
-        points.append(_blend_point(label, entries, has_lightning))
-    return points
-
-
-def _blend_yearly(station_data, has_lightning):
-    """Blend stations for yearly resolution (variable-length point arrays)."""
-    all_labels = {}
-    for sd in station_data:
-        for pt in sd["data"]["points"]:
-            all_labels[pt["label"]] = True
-
-    station_lookups = []
-    for sd in station_data:
-        lookup = {pt["label"]: pt for pt in sd["data"]["points"]}
-        station_lookups.append((sd["weight"], lookup))
-
-    points = []
-    for label in sorted(all_labels.keys()):
-        entries = []
-        for w, lookup in station_lookups:
-            pt = lookup.get(label)
-            if pt is not None:
-                entries.append((w, pt))
-        points.append(_blend_point(label, entries, has_lightning))
-    return points

@@ -1,11 +1,13 @@
 """Data quality assessment for location-based weather estimates.
 
-Uses a report-card model: two independent factors are each graded
-good / fair / poor, and the overall level equals the worst factor.
+Uses a report-card model with **independent assessments** for cloud coverage
+and lightning probability.  Each dimension has its own station set and gets
+two factors graded good / fair / poor:
 
-Factors:
-  1. Historical data — combines time-period coverage with observation depth
-  2. Station coverage — combines station proximity and directional spread
+  1. Station coverage — proximity + directional spread of that dimension's stations
+  2. Historical data  — time-period coverage + observation depth
+
+The overall quality level equals the worst factor across both dimensions.
 """
 
 import math
@@ -44,19 +46,23 @@ _LEVEL_MAP = {0: "low", 1: "medium", 2: "high"}
 # Empty quality result (used when no data is available)
 # ---------------------------------------------------------------------------
 
-EMPTY_QUALITY: dict = {
-    "level": "low",
-    "historical_data": {
-        "value": 0,
-        "level": "poor",
-        "summary": "No historical data available for this location.",
-    },
+_EMPTY_DIM: dict = {
     "station_coverage": {
         "value": 0,
         "level": "poor",
-        "avg_km": None,
-        "summary": "No station data available for this location.",
+        "summary": "No station data available.",
     },
+    "historical_data": {
+        "value": 0,
+        "level": "poor",
+        "summary": "No historical data available.",
+    },
+}
+
+EMPTY_QUALITY: dict = {
+    "level": "low",
+    "cloud": dict(_EMPTY_DIM),
+    "lightning": dict(_EMPTY_DIM),
 }
 
 # ---------------------------------------------------------------------------
@@ -73,7 +79,6 @@ def _classify(value, good_thresh, fair_thresh, higher_is_better=True):
             return "fair"
         return "poor"
     else:
-        # Lower is better (e.g. distance)
         if value <= good_thresh:
             return "good"
         if value <= fair_thresh:
@@ -95,20 +100,15 @@ def _bearing(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 
 def _angular_spread(bearings: list[float]) -> float:
-    """Compute the minimum arc (degrees) that contains all bearings.
-
-    Returns 0 for 0-1 bearings, up to 360 for perfectly surrounding stations.
-    """
+    """Compute the minimum arc (degrees) that contains all bearings."""
     if len(bearings) <= 1:
         return 0.0
     s = sorted(b % 360 for b in bearings)
-    # Compute gaps between consecutive bearings (including wraparound)
     max_gap = 0.0
     for i in range(len(s) - 1):
         gap = s[i + 1] - s[i]
         if gap > max_gap:
             max_gap = gap
-    # Wraparound gap
     wrap_gap = (360 - s[-1]) + s[0]
     if wrap_gap > max_gap:
         max_gap = wrap_gap
@@ -116,7 +116,7 @@ def _angular_spread(bearings: list[float]) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Human-readable summary
+# Human-readable summaries
 # ---------------------------------------------------------------------------
 
 _COMPASS_NAMES = [
@@ -128,22 +128,19 @@ _COMPASS_NAMES = [
 
 
 def _compass_direction(bearing: float) -> str:
-    """Convert a bearing (0-360) to a human-readable compass direction."""
     idx = round(bearing / 22.5) % 16
     return _COMPASS_NAMES[idx]
 
 
 def _weighted_mean_bearing(bearings: list[float], weights: list[float]) -> float:
-    """Compute the weighted circular mean of a set of bearings."""
     sin_sum = sum(w * math.sin(math.radians(b)) for b, w in zip(bearings, weights))
     cos_sum = sum(w * math.cos(math.radians(b)) for b, w in zip(bearings, weights))
     return math.degrees(math.atan2(sin_sum, cos_sum)) % 360
 
 
-def _build_station_summary(
-    *, prox_level, dir_level, max_weight, top_name, bearings, weights,
-):
-    """Plain-language explanation of station coverage (proximity + direction)."""
+def _build_station_summary(*, prox_level, dir_level, max_weight, top_name,
+                           bearings, weights):
+    """Plain-language explanation of station coverage."""
     parts = []
 
     if max_weight >= 0.85:
@@ -153,21 +150,19 @@ def _build_station_summary(
         )
     elif prox_level == "good":
         parts.append(
-            "There are weather stations close to this location, giving a "
-            "reliable estimate."
+            "There are stations close to this location, giving a reliable estimate."
         )
     elif prox_level == "fair":
         parts.append(
-            "The nearest weather stations are at a moderate distance. "
+            "The nearest stations are at a moderate distance. "
             "Estimates are reasonable but may not capture very local conditions."
         )
     else:
         parts.append(
-            "There are no nearby weather stations, so the estimates are "
+            "There are no nearby stations, so the estimates are "
             "computed from stations that are far away."
         )
 
-    # Directional note — only relevant when actually interpolating
     if max_weight < 0.85 and dir_level in ("poor", "fair"):
         avg_bearing = _weighted_mean_bearing(bearings, weights)
         direction_name = _compass_direction(avg_bearing)
@@ -191,9 +186,7 @@ def _build_data_summary(*, coverage_pct, coverage_level, depth_level):
     parts = []
 
     if coverage_pct == 100:
-        parts.append(
-            "Every time period on the chart has real observations."
-        )
+        parts.append("Every time period has real observations.")
     elif coverage_level == "good":
         parts.append(
             "Nearly all time periods have observations, with a few small "
@@ -205,10 +198,7 @@ def _build_data_summary(*, coverage_pct, coverage_level, depth_level):
             "filled in with estimates."
         )
     else:
-        parts.append(
-            "There are significant gaps in the historical record for "
-            "this area."
-        )
+        parts.append("There are significant gaps in the historical record.")
 
     if depth_level == "good":
         parts.append(
@@ -230,67 +220,47 @@ def _build_data_summary(*, coverage_pct, coverage_level, depth_level):
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Per-dimension quality assessment
 # ---------------------------------------------------------------------------
 
 
-def compute_quality(
-    points: list[dict],
-    resolution: str,
-    station_data: list[dict],
-    target_lat: float,
-    target_lng: float,
-) -> dict:
-    """Compute a report-card data quality assessment.
+def _assess_dimension(points, resolution, station_data, target_lat, target_lng,
+                      obs_key="obs_count"):
+    """Assess station coverage + historical data for one dimension.
 
-    Each of four factors gets an independent level (good / fair / poor).
-    The overall level equals the worst individual factor.
-
-    Parameters
-    ----------
-    points : list[dict]
-        Blended data points (must have ``obs_count``).
-    resolution : str
-        ``"day"``, ``"month"``, or ``"year"``.
-    station_data : list[dict]
-        Selected stations with ``station`` and ``weight`` keys.
-    target_lat, target_lng : float
-        The location the user searched for.
-
-    Returns
-    -------
-    dict with per-factor breakdowns and an overall ``level``.
+    Returns a dict with ``station_coverage`` and ``historical_data`` sub-dicts,
+    plus an overall ``level`` for the dimension.
     """
+    if not station_data:
+        return dict(_EMPTY_DIM), "poor"
+
     total_pts = len(points)
-    if total_pts == 0:
-        return dict(EMPTY_QUALITY)
 
-    # --- 1. Historical data (coverage + depth) ---
-    obs_counts = [p.get("obs_count", 0) for p in points]
+    # --- Historical data (coverage + depth) ---
+    obs_counts = [p.get(obs_key, 0) for p in points]
 
-    # Sub-factor: coverage — % of time buckets with any data
-    coverage_val = round(
-        sum(1 for o in obs_counts if o > 0) / total_pts * 100, 1
-    )
+    if total_pts > 0:
+        coverage_val = round(
+            sum(1 for o in obs_counts if o > 0) / total_pts * 100, 1
+        )
+        good_baseline = _GOOD_OBS.get(resolution, 500)
+        per_point = [min(o / good_baseline, 1.0) for o in obs_counts]
+        depth_val = round(sum(per_point) / total_pts * 100, 1)
+    else:
+        coverage_val = 0.0
+        depth_val = 0.0
+
     coverage_level = _classify(coverage_val, _COVERAGE_GOOD, _COVERAGE_FAIR)
-
-    # Sub-factor: depth — observation count vs expected baseline
-    good_baseline = _GOOD_OBS.get(resolution, 500)
-    per_point = [min(o / good_baseline, 1.0) for o in obs_counts]
-    depth_val = round(sum(per_point) / total_pts * 100, 1)
     depth_level = _classify(depth_val, _DEPTH_GOOD, _DEPTH_FAIR)
-
-    # Combined: worst of the two sub-factors
     hd_level = _FACTOR_LEVELS[
         min(_LEVEL_ORDER[coverage_level], _LEVEL_ORDER[depth_level])
     ]
     hd_val = round((coverage_val + depth_val) / 2, 1)
 
-    # --- 2. Station coverage (proximity + directional spread) ---
+    # --- Station coverage (proximity + directional spread) ---
     avg_dist = sum(
         sd["station"]["distance_km"] * sd["weight"] for sd in station_data
     )
-    avg_km = round(avg_dist, 1)
     prox_val = max(0.0, min(100.0, round(
         (1 - min(avg_dist, 200) / 200) * 100, 1
     )))
@@ -309,9 +279,6 @@ def compute_quality(
     dir_val = round(min(spread / 360, 1.0) * 100, 1)
     dir_level = _classify(spread, _DIR_GOOD_DEG, _DIR_FAIR_DEG)
 
-    # Directional coverage only matters when truly interpolating across
-    # multiple stations.  If one station dominates the weights, the estimate
-    # is essentially a single-station reading and angular spread is irrelevant.
     max_weight = max(sd["weight"] for sd in station_data)
     effective_dir = dir_level
     if max_weight >= 0.85:
@@ -319,34 +286,23 @@ def compute_quality(
     elif max_weight >= 0.60:
         effective_dir = _FACTOR_LEVELS[min(_LEVEL_ORDER[dir_level] + 1, 2)]
 
-    # Combined station coverage: worst of proximity and effective direction.
-    # Bar value: when direction is overridden, just use proximity; otherwise
-    # average the two sub-scores.
     sc_level = _FACTOR_LEVELS[
         min(_LEVEL_ORDER[prox_level], _LEVEL_ORDER[effective_dir])
     ]
     if effective_dir == "good" and dir_level != "good":
-        sc_val = prox_val  # direction is irrelevant — bar reflects proximity
+        sc_val = prox_val
     else:
         sc_val = round((prox_val + dir_val) / 2, 1)
 
-    # --- Overall: worst individual factor ---
-    all_levels = [hd_level, sc_level]
-    worst = min(_LEVEL_ORDER[lv] for lv in all_levels)
-    overall = _LEVEL_MAP[worst]
-
-    # --- Build human-readable summaries ---
+    # Summaries
     top_station = max(station_data, key=lambda sd: sd["weight"])
     top_name = top_station["station"]["name"]
     weights = [sd["weight"] for sd in station_data]
 
     station_summary = _build_station_summary(
-        prox_level=prox_level,
-        dir_level=dir_level,
-        max_weight=max_weight,
-        top_name=top_name,
-        bearings=bearings,
-        weights=weights,
+        prox_level=prox_level, dir_level=dir_level,
+        max_weight=max_weight, top_name=top_name,
+        bearings=bearings, weights=weights,
     )
     data_summary = _build_data_summary(
         coverage_pct=coverage_val,
@@ -354,17 +310,78 @@ def compute_quality(
         depth_level=depth_level,
     )
 
-    return {
-        "level": overall,
+    dim_level = _FACTOR_LEVELS[
+        min(_LEVEL_ORDER[hd_level], _LEVEL_ORDER[sc_level])
+    ]
+
+    dim_result = {
+        "station_coverage": {
+            "value": sc_val,
+            "level": sc_level,
+            "summary": station_summary,
+        },
         "historical_data": {
             "value": hd_val,
             "level": hd_level,
             "summary": data_summary,
         },
-        "station_coverage": {
-            "value": sc_val,
-            "level": sc_level,
-            "avg_km": avg_km,
-            "summary": station_summary,
-        },
+    }
+
+    return dim_result, dim_level
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def compute_quality(
+    cloud_points: list[dict],
+    lightning_points: list[dict],
+    resolution: str,
+    cloud_station_data: list[dict],
+    lightning_station_data: list[dict],
+    target_lat: float,
+    target_lng: float,
+) -> dict:
+    """Compute a report-card data quality assessment with independent
+    cloud and lightning dimensions.
+
+    Each dimension gets its own station-coverage and historical-data grades.
+    The overall level equals the worst factor across both dimensions.
+    """
+    cloud_dim, cloud_level = _assess_dimension(
+        cloud_points, resolution, cloud_station_data,
+        target_lat, target_lng, obs_key="obs_count",
+    )
+
+    if lightning_station_data:
+        lightning_dim, lightning_level = _assess_dimension(
+            lightning_points, resolution, lightning_station_data,
+            target_lat, target_lng, obs_key="lightning_obs_count",
+        )
+    else:
+        lightning_dim = dict(_EMPTY_DIM)
+        lightning_dim["station_coverage"]["summary"] = (
+            "No nearby stations record lightning observations."
+        )
+        lightning_dim["historical_data"]["summary"] = (
+            "No lightning data is available for this area."
+        )
+        lightning_level = "poor"
+
+    all_levels = [cloud_level]
+    if lightning_station_data:
+        all_levels.append(lightning_level)
+    else:
+        # No lightning stations caps overall at "medium"
+        all_levels.append("fair")
+
+    worst = min(_LEVEL_ORDER[lv] for lv in all_levels)
+    overall = _LEVEL_MAP[worst]
+
+    return {
+        "level": overall,
+        "cloud": cloud_dim,
+        "lightning": lightning_dim,
     }

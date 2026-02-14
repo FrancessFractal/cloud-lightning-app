@@ -8,6 +8,27 @@ const SWEDEN_BOUNDS = L.latLngBounds([55.3, 10.5], [69.1, 24.2])
 
 const COLOR_BOTH = { color: '#7cc47f', fillColor: '#7cc47f', fillOpacity: 0.55, weight: 1.5 }
 const COLOR_CLOUD = { color: '#f5a623', fillColor: '#f5a623', fillOpacity: 0.55, weight: 1.5 }
+const COLOR_LIGHTNING = { color: '#8ba8f5', fillColor: '#8ba8f5', fillOpacity: 0.55, weight: 1.5 }
+
+function stationType(s) {
+  if (s.has_cloud_data && s.has_weather_data) return 'both'
+  if (s.has_cloud_data) return 'cloud-only'
+  return 'lightning-only'
+}
+
+function stationColor(s) {
+  const t = stationType(s)
+  if (t === 'both') return COLOR_BOTH
+  if (t === 'cloud-only') return COLOR_CLOUD
+  return COLOR_LIGHTNING
+}
+
+function stationLabel(s) {
+  const t = stationType(s)
+  if (t === 'both') return 'Cloud + Lightning'
+  if (t === 'cloud-only') return 'Cloud only'
+  return 'Lightning only'
+}
 
 function FitSweden() {
   const map = useMap()
@@ -32,14 +53,16 @@ export default function StationExplorer() {
   }, [])
 
   const filtered = stations.filter((s) => {
-    if (filter === 'both' && !s.has_weather_data) return false
-    if (filter === 'cloud-only' && s.has_weather_data) return false
+    if (filter === 'both' && stationType(s) !== 'both') return false
+    if (filter === 'cloud-only' && stationType(s) !== 'cloud-only') return false
+    if (filter === 'lightning-only' && stationType(s) !== 'lightning-only') return false
     if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
-  const countBoth = stations.filter((s) => s.has_weather_data).length
-  const countCloudOnly = stations.filter((s) => !s.has_weather_data).length
+  const countBoth = stations.filter((s) => stationType(s) === 'both').length
+  const countCloudOnly = stations.filter((s) => stationType(s) === 'cloud-only').length
+  const countLightningOnly = stations.filter((s) => stationType(s) === 'lightning-only').length
 
   if (loading) {
     return (
@@ -61,11 +84,15 @@ export default function StationExplorer() {
           </div>
           <div className="stat">
             <span className="stat-value stat-good">{countBoth}</span>
-            <span className="stat-label">Cloud + lightning</span>
+            <span className="stat-label">Cloud + Lightning</span>
           </div>
           <div className="stat">
             <span className="stat-value stat-warn">{countCloudOnly}</span>
             <span className="stat-label">Cloud only</span>
+          </div>
+          <div className="stat">
+            <span className="stat-value stat-info">{countLightningOnly}</span>
+            <span className="stat-label">Lightning only</span>
           </div>
         </div>
       </div>
@@ -81,6 +108,10 @@ export default function StationExplorer() {
           <span className="explorer-legend-item">
             <span className="explorer-dot" style={{ background: COLOR_CLOUD.fillColor }} />
             Cloud only
+          </span>
+          <span className="explorer-legend-item">
+            <span className="explorer-dot" style={{ background: COLOR_LIGHTNING.fillColor }} />
+            Lightning only
           </span>
         </div>
         <div className="explorer-map-container">
@@ -101,12 +132,12 @@ export default function StationExplorer() {
                 key={s.id}
                 center={[s.latitude, s.longitude]}
                 radius={6}
-                pathOptions={s.has_weather_data ? COLOR_BOTH : COLOR_CLOUD}
+                pathOptions={stationColor(s)}
               >
                 <Tooltip>
                   <strong>{s.name}</strong><br />
                   ID: {s.id}<br />
-                  {s.has_weather_data ? 'Cloud + Lightning' : 'Cloud only'}
+                  {stationLabel(s)}
                 </Tooltip>
               </CircleMarker>
             ))}
@@ -145,6 +176,12 @@ export default function StationExplorer() {
             >
               Cloud only ({countCloudOnly})
             </button>
+            <button
+              className={`filter-btn ${filter === 'lightning-only' ? 'active' : ''}`}
+              onClick={() => setFilter('lightning-only')}
+            >
+              Lightning only ({countLightningOnly})
+            </button>
           </div>
         </div>
 
@@ -156,8 +193,8 @@ export default function StationExplorer() {
                 <th>ID</th>
                 <th>Lat</th>
                 <th>Lng</th>
-                <th>Cloud data</th>
-                <th>Lightning data</th>
+                <th>Cloud</th>
+                <th>Lightning</th>
               </tr>
             </thead>
             <tbody>
@@ -167,7 +204,12 @@ export default function StationExplorer() {
                   <td className="mono">{s.id}</td>
                   <td className="mono">{s.latitude.toFixed(2)}</td>
                   <td className="mono">{s.longitude.toFixed(2)}</td>
-                  <td><span className="badge badge-yes">Yes</span></td>
+                  <td>
+                    {s.has_cloud_data
+                      ? <span className="badge badge-yes">Yes</span>
+                      : <span className="badge badge-no">No</span>
+                    }
+                  </td>
                   <td>
                     {s.has_weather_data
                       ? <span className="badge badge-yes">Yes</span>

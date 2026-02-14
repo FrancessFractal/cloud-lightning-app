@@ -37,12 +37,16 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # ---------------------------------------------------------------------------
 
 
-def get_nearby_stations(lat: float, lng: float, count: int = 5) -> list[dict]:
-    """Return the *count* nearest active SMHI stations for cloud coverage.
+def get_nearby_stations(
+    lat: float, lng: float,
+    parameter_id: int = PARAM_CLOUD_COVERAGE,
+    count: int = 10,
+) -> list[dict]:
+    """Return the *count* nearest active SMHI stations for *parameter_id*.
 
     Each station dict: ``{id, name, latitude, longitude, distance_km}``
     """
-    raw_stations = fetch_station_list(PARAM_CLOUD_COVERAGE)
+    raw_stations = fetch_station_list(parameter_id)
 
     stations = []
     for s in raw_stations:
@@ -66,6 +70,9 @@ def get_nearby_stations(lat: float, lng: float, count: int = 5) -> list[dict]:
 def get_all_stations() -> list[dict]:
     """Return all active SMHI stations with info on which parameters they support.
 
+    Merges stations from both the cloud coverage and present weather parameter
+    lists so that weather-only stations (e.g. airports) also appear.
+
     Each station dict: ``{id, name, latitude, longitude, has_cloud_data, has_weather_data}``
     """
     cloud_raw = fetch_station_list(PARAM_CLOUD_COVERAGE)
@@ -74,20 +81,38 @@ def get_all_stations() -> list[dict]:
     cloud_ids = {s["key"] for s in cloud_raw if s.get("active")}
     weather_ids = {s["key"] for s in weather_raw if s.get("active")}
 
-    stations = []
+    # Build a merged dict keyed by station id
+    merged: dict[str, dict] = {}
+
     for s in cloud_raw:
         if not s.get("active"):
             continue
-        stations.append(
-            {
+        merged[s["key"]] = {
+            "id": s["key"],
+            "name": s["name"],
+            "latitude": s["latitude"],
+            "longitude": s["longitude"],
+        }
+
+    for s in weather_raw:
+        if not s.get("active"):
+            continue
+        if s["key"] not in merged:
+            merged[s["key"]] = {
                 "id": s["key"],
                 "name": s["name"],
                 "latitude": s["latitude"],
                 "longitude": s["longitude"],
-                "has_cloud_data": s["key"] in cloud_ids,
-                "has_weather_data": s["key"] in weather_ids,
             }
-        )
+
+    stations = [
+        {
+            **info,
+            "has_cloud_data": info["id"] in cloud_ids,
+            "has_weather_data": info["id"] in weather_ids,
+        }
+        for info in merged.values()
+    ]
 
     stations.sort(key=lambda s: s["name"])
     return stations

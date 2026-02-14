@@ -412,40 +412,70 @@ h3 {
 }
 
 /* --- Data quality badge --- */
-.confidence-badge {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6em;
-  padding: 0.8em 1em;
-  margin-bottom: 1.25em;
-  border-radius: 10px;
-  font-size: 0.85em;
-  border: 1px solid;
-}
-
-.confidence-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.confidence-level {
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.3em;
-}
-
-.confidence-symbol {
-  font-size: 1.1em;
-  line-height: 1;
-}
+/* (old confidence-badge styles removed — replaced by .dqb) */
 
 .quality-factor-summary {
   font-size: 0.82em;
   color: #999;
   line-height: 1.4;
   margin: 0.1em 0 0.4em 1.4em;
+}
+
+/* --- Per-dimension quality badge (expandable) --- */
+.dqb {
+  margin-bottom: 1.25em;
+  border-radius: 10px;
+  font-size: 0.85em;
+  border: 1px solid;
+  overflow: hidden;
+}
+
+.dqb-high   { border-color: rgba(124, 196, 127, 0.35); background: rgba(124, 196, 127, 0.06); color: #7cc47f; }
+.dqb-medium { border-color: rgba(245, 166, 35, 0.35);  background: rgba(245, 166, 35, 0.06); color: #f5a623; }
+.dqb-low    { border-color: rgba(239, 139, 139, 0.35); background: rgba(239, 139, 139, 0.06); color: #ef8b8b; }
+
+.dqb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.7em 1em;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dqb-header:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dqb-title {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.dqb-symbol {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.dqb-body-slide {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 350ms ease;
+}
+
+.dqb-body {
+  padding: 0 1em 0.8em;
+}
+
+.dqb-factors {
+  margin-bottom: 0.6em;
 }
 
 /* Quality factor bars */
@@ -524,30 +554,6 @@ h3 {
   background: rgba(239, 139, 139, 0.08);
   border-radius: 6px;
   line-height: 1.45;
-}
-
-/* Colorblind-safe: each level uses color + distinct icon (set in component).
-   Contrast verified against #1a1a2e dark bg:
-   - #7cc47f (green):  5.6:1 ratio — WCAG AA pass
-   - #f5a623 (amber):  6.8:1 ratio — WCAG AA pass
-   - #ef8b8b (red):    5.1:1 ratio — WCAG AA pass
-*/
-.badge-high {
-  background: rgba(124, 196, 127, 0.1);
-  border-color: rgba(124, 196, 127, 0.3);
-  color: #7cc47f;
-}
-
-.badge-medium {
-  background: rgba(245, 166, 35, 0.1);
-  border-color: rgba(245, 166, 35, 0.3);
-  color: #f5a623;
-}
-
-.badge-low {
-  background: rgba(239, 139, 139, 0.1);
-  border-color: rgba(239, 139, 139, 0.3);
-  color: #ef8b8b;
 }
 
 /* --- High-estimation warning --- */
@@ -660,6 +666,26 @@ h3 {
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   font-size: 0.9em;
   color: #aaa;
+}
+
+.drawer-station-section {
+  margin-top: 0.6em;
+}
+
+.drawer-section-title {
+  font-size: 0.82em;
+  font-weight: 600;
+  color: #bbb;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0.8em 0 0;
+}
+
+.drawer-explanation {
+  font-size: 0.82em;
+  color: #999;
+  line-height: 1.4;
+  margin: 0 0 0.5em;
 }
 
 /* --- Tooltip (shared) --- */
@@ -828,6 +854,7 @@ h3 {
 
 .stat-good { color: #66bb6a; }
 .stat-warn { color: #ffa726; }
+.stat-info { color: #8ba8f5; }
 
 .stat-label {
   font-size: 0.75em;
@@ -1030,8 +1057,8 @@ h3 {
     padding: 1em;
   }
 
-  .confidence-badge {
-    padding: 0.7em 0.8em;
+  .dqb {
+    font-size: 0.82em;
   }
 
   .quality-label {
