@@ -4,6 +4,7 @@ import InsightCards from './components/InsightCards'
 import CloudChartPanel from './components/CloudChartPanel'
 import LightningChartPanel from './components/LightningChartPanel'
 import DataQualityBadge from './components/DataQualityBadge'
+import MethodologyDrawer from './components/MethodologyDrawer'
 import StationExplorer from './components/StationExplorer'
 import './App.css'
 
@@ -285,6 +286,8 @@ function App() {
               )}
             </div>
           )}
+
+          {weatherData && <MethodologyDrawer />}
         </>
       )}
 
