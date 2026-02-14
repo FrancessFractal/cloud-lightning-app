@@ -152,14 +152,20 @@ export function generateInsights(points, resolution, hasLightning) {
 }
 
 /**
- * Format lightning probability for display. Values between 0 (exclusive)
- * and 1 (exclusive) are shown as "<1%" for readability.
+ * Format lightning probability for display with appropriate precision.
+ * - 0 → "0%"
+ * - 0.03 → "0.03%"
+ * - 0.5  → "0.5%"
+ * - 2.4  → "2.4%"
+ * - 10   → "10%"
  */
 export function fmtLightning(val) {
   if (val == null) return 'N/A'
   if (val === 0) return '0%'
-  if (val > 0 && val < 1) return '<1%'
-  return `${val}%`
+  if (val < 0.1) return `${parseFloat(val.toFixed(2))}%`
+  if (val < 1) return `${parseFloat(val.toFixed(1))}%`
+  if (val < 10) return `${parseFloat(val.toFixed(1))}%`
+  return `${Math.round(val)}%`
 }
 
 /**
@@ -198,9 +204,17 @@ export function yearlyTicks(points) {
 }
 
 /**
- * Format XAxis ticks for daily resolution -- show month names only.
+ * Return an explicit array of tick labels for daily resolution —
+ * only the "Mon 01" entries so the axis shows month names.
+ */
+export function dailyTicks(data) {
+  return data.filter((p) => p.label.endsWith(' 01')).map((p) => p.label)
+}
+
+/**
+ * Format XAxis ticks for daily resolution -- strip the " 01" day suffix
+ * to show only the month abbreviation.
  */
 export function dailyTickFormatter(label) {
-  if (label.endsWith(' 01')) return label.replace(/ 01$/, '')
-  return ''
+  return label.replace(/ 01$/, '')
 }

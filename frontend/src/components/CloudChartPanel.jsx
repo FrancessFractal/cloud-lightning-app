@@ -3,7 +3,7 @@ import {
   ComposedChart, Bar, Cell, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { interpolateGaps, addTrendLine, dailyTickFormatter, yearlyTicks } from '../utils/chartHelpers'
+import { interpolateGaps, addTrendLine, dailyTicks, dailyTickFormatter, yearlyTicks } from '../utils/chartHelpers'
 
 const BAR_FILL = 'rgba(100, 126, 234, 0.65)'
 const BAR_EST_FILL = 'rgba(100, 126, 234, 0.25)'
@@ -103,8 +103,8 @@ export default function CloudChartPanel({
           <XAxis
             dataKey="label"
             tick={{ fill: '#aaa', fontSize: compact ? 10 : (isDaily ? 11 : 13) }}
-            ticks={isYearly ? yearlyTicks(chartData) : undefined}
-            interval={isDaily ? 'preserveStartEnd' : 0}
+            ticks={isYearly ? yearlyTicks(chartData) : isDaily ? dailyTicks(chartData) : undefined}
+            interval={isDaily ? 0 : 0}
             tickFormatter={isDaily ? dailyTickFormatter : undefined}
             angle={isYearly ? -45 : 0}
             textAnchor={isYearly ? 'end' : 'middle'}
