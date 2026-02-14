@@ -1,7 +1,12 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from smhi_service import geocode_address, get_monthly_weather_data, get_nearby_stations
+from smhi_service import (
+    geocode_address,
+    get_all_stations,
+    get_monthly_weather_data,
+    get_nearby_stations,
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -37,6 +42,17 @@ def stations():
 
     nearby = get_nearby_stations(lat, lng)
     return jsonify({"stations": nearby})
+
+
+@app.route("/api/all-stations")
+def all_stations():
+    """Return all active SMHI stations with parameter availability."""
+    try:
+        data = get_all_stations()
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch stations: {e}"}), 500
+
+    return jsonify({"stations": data})
 
 
 @app.route("/api/weather-data/<station_id>")

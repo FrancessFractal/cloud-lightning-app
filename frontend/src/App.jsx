@@ -2,9 +2,11 @@ import { useState } from 'react'
 import AddressSearch from './components/AddressSearch'
 import StationSelector from './components/StationSelector'
 import WeatherChart from './components/WeatherChart'
+import StationExplorer from './components/StationExplorer'
 import './App.css'
 
 function App() {
+  const [page, setPage] = useState('search')
   const [location, setLocation] = useState(null)
   const [stations, setStations] = useState([])
   const [selectedStation, setSelectedStation] = useState(null)
@@ -55,34 +57,55 @@ function App() {
         Cloud coverage &amp; lightning data from SMHI
       </p>
 
-      <AddressSearch
-        onLocationFound={handleLocationFound}
-        isLoading={loadingStations}
-      />
+      <nav className="tab-bar">
+        <button
+          className={`tab-btn ${page === 'search' ? 'active' : ''}`}
+          onClick={() => setPage('search')}
+        >
+          Search
+        </button>
+        <button
+          className={`tab-btn ${page === 'explorer' ? 'active' : ''}`}
+          onClick={() => setPage('explorer')}
+        >
+          All stations
+        </button>
+      </nav>
 
-      {location && (
-        <div className="location-badge">
-          <span className="location-icon">&#x1F4CD;</span> {location.display_name}
-        </div>
+      {page === 'search' && (
+        <>
+          <AddressSearch
+            onLocationFound={handleLocationFound}
+            isLoading={loadingStations}
+          />
+
+          {location && (
+            <div className="location-badge">
+              <span className="location-icon">&#x1F4CD;</span> {location.display_name}
+            </div>
+          )}
+
+          {loadingStations && <p className="loading">Loading nearby stations...</p>}
+
+          <StationSelector
+            stations={stations}
+            selectedId={selectedStation}
+            onSelect={handleStationSelect}
+            isLoading={loadingData}
+          />
+
+          {loadingData && (
+            <div className="loading">
+              <p>Fetching climate data&hellip; This may take a moment.</p>
+              <div className="spinner" />
+            </div>
+          )}
+
+          <WeatherChart data={weatherData} stationName={selectedStationName} />
+        </>
       )}
 
-      {loadingStations && <p className="loading">Loading nearby stations...</p>}
-
-      <StationSelector
-        stations={stations}
-        selectedId={selectedStation}
-        onSelect={handleStationSelect}
-        isLoading={loadingData}
-      />
-
-      {loadingData && (
-        <div className="loading">
-          <p>Fetching climate data&hellip; This may take a moment.</p>
-          <div className="spinner" />
-        </div>
-      )}
-
-      <WeatherChart data={weatherData} stationName={selectedStationName} />
+      {page === 'explorer' && <StationExplorer />}
     </div>
   )
 }

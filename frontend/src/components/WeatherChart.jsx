@@ -13,12 +13,20 @@ import {
 export default function WeatherChart({ data, stationName }) {
   if (!data || data.months.length === 0) return null
 
+  const hasLightning = data.has_lightning_data
+
   return (
     <div className="card chart-card">
       <h2>Climate profile{stationName ? ` — ${stationName}` : ''}</h2>
       <p className="hint">
         Monthly averages based on historical observations
       </p>
+      {!hasLightning && (
+        <p className="notice">
+          This station does not record present weather observations, so
+          lightning data is not available. Try a different station nearby.
+        </p>
+      )}
       <ResponsiveContainer width="100%" height={380}>
         <ComposedChart
           data={data.months}
@@ -40,18 +48,20 @@ export default function WeatherChart({ data, stationName }) {
               style: { fill: '#aaa', fontSize: 12 },
             }}
           />
-          <YAxis
-            yAxisId="lightning"
-            orientation="right"
-            domain={[0, 'auto']}
-            tick={{ fill: '#aaa', fontSize: 13 }}
-            label={{
-              value: 'Lightning prob. %',
-              angle: 90,
-              position: 'insideRight',
-              style: { fill: '#aaa', fontSize: 12 },
-            }}
-          />
+          {hasLightning && (
+            <YAxis
+              yAxisId="lightning"
+              orientation="right"
+              domain={[0, 'auto']}
+              tick={{ fill: '#aaa', fontSize: 13 }}
+              label={{
+                value: 'Lightning prob. %',
+                angle: 90,
+                position: 'insideRight',
+                style: { fill: '#aaa', fontSize: 12 },
+              }}
+            />
+          )}
           <Tooltip
             contentStyle={{
               background: '#1e1e2e',
@@ -74,15 +84,17 @@ export default function WeatherChart({ data, stationName }) {
             fill="rgba(100, 126, 234, 0.7)"
             radius={[4, 4, 0, 0]}
           />
-          <Line
-            yAxisId="lightning"
-            dataKey="lightning_probability"
-            name="Lightning probability"
-            stroke="#f5a623"
-            strokeWidth={2}
-            dot={{ r: 4, fill: '#f5a623' }}
-            connectNulls
-          />
+          {hasLightning && (
+            <Line
+              yAxisId="lightning"
+              dataKey="lightning_probability"
+              name="Lightning probability"
+              stroke="#f5a623"
+              strokeWidth={2}
+              dot={{ r: 4, fill: '#f5a623' }}
+              connectNulls
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     </div>

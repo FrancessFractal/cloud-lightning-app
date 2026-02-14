@@ -23,8 +23,41 @@ h2 {
 .subtitle {
   text-align: center;
   color: #999;
-  margin-bottom: 2rem;
+  margin-bottom: 1.2rem;
   font-size: 0.95em;
+}
+
+/* --- Tab bar --- */
+.tab-bar {
+  display: flex;
+  gap: 0.35em;
+  margin-bottom: 1.5em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.5em;
+}
+
+.tab-btn {
+  padding: 0.5em 1.2em;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: #888;
+  font-size: 0.9em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tab-btn:hover {
+  color: #bbb;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tab-btn.active {
+  color: #ddd;
+  background: rgba(102, 126, 234, 0.12);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* --- Cards --- */
@@ -184,10 +217,173 @@ h2 {
   font-size: 0.9em;
 }
 
+.notice {
+  padding: 0.6em 1em;
+  margin-bottom: 1em;
+  border-radius: 8px;
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px solid rgba(245, 166, 35, 0.25);
+  color: #d4a24a;
+  font-size: 0.85em;
+  line-height: 1.45;
+}
+
 .hint {
   color: #777;
   font-size: 0.85em;
   margin: 0 0 0.6em;
+}
+
+/* --- Station explorer --- */
+.explorer-stats {
+  display: flex;
+  gap: 1em;
+  margin-top: 0.5em;
+}
+
+.stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.8em;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.stat-value {
+  font-size: 1.8em;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stat-good {
+  color: #66bb6a;
+}
+
+.stat-warn {
+  color: #ffa726;
+}
+
+.stat-label {
+  font-size: 0.75em;
+  color: #888;
+  margin-top: 0.2em;
+}
+
+.explorer-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  margin-bottom: 1em;
+}
+
+.explorer-search {
+  width: 100%;
+  padding: 0.6em 1em;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: 0.9em;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.explorer-search:focus {
+  border-color: #667eea;
+}
+
+.explorer-filters {
+  display: flex;
+  gap: 0.35em;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 0.35em 0.8em;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #999;
+  font-size: 0.8em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #bbb;
+}
+
+.filter-btn.active {
+  background: rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.4);
+  color: #b0b8e8;
+}
+
+.explorer-table-wrap {
+  overflow-x: auto;
+}
+
+.explorer-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+.explorer-table th {
+  text-align: left;
+  padding: 0.6em 0.7em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #999;
+  font-weight: 600;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.explorer-table td {
+  padding: 0.55em 0.7em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+}
+
+.explorer-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.station-name-cell {
+  font-weight: 500;
+}
+
+.mono {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.9em;
+  color: #aaa;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15em 0.55em;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.badge-yes {
+  background: rgba(102, 187, 106, 0.15);
+  color: #66bb6a;
+}
+
+.badge-no {
+  background: rgba(255, 167, 38, 0.15);
+  color: #ffa726;
 }
 
 /* --- Recharts overrides --- */

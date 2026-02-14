@@ -99,6 +99,14 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
+def _get_active_station_ids(parameter_id: int) -> set[str]:
+    """Return the set of active station IDs for a given parameter."""
+    url = f"{SMHI_BASE}/parameter/{parameter_id}.json"
+    resp = requests.get(url, timeout=15)
+    resp.raise_for_status()
+    return {s["key"] for s in resp.json().get("station", []) if s.get("active")}
+
+
 def get_nearby_stations(lat: float, lng: float, count: int = 5) -> list[dict]:
     """Return the *count* nearest active SMHI stations for cloud coverage.
 
@@ -126,6 +134,39 @@ def get_nearby_stations(lat: float, lng: float, count: int = 5) -> list[dict]:
 
     stations.sort(key=lambda s: s["distance_km"])
     return stations[:count]
+
+
+def get_all_stations() -> list[dict]:
+    """Return all active SMHI stations with info on which parameters they support.
+
+    Each station dict: {id, name, latitude, longitude, has_cloud_data, has_weather_data}
+    """
+    # Fetch station lists for both parameters in sequence
+    cloud_ids = _get_active_station_ids(PARAM_CLOUD_COVERAGE)
+    weather_ids = _get_active_station_ids(PARAM_PRESENT_WEATHER)
+
+    # Build full station info from the cloud coverage parameter list (our primary)
+    url = f"{SMHI_BASE}/parameter/{PARAM_CLOUD_COVERAGE}.json"
+    resp = requests.get(url, timeout=15)
+    resp.raise_for_status()
+
+    stations = []
+    for s in resp.json().get("station", []):
+        if not s.get("active"):
+            continue
+        stations.append(
+            {
+                "id": s["key"],
+                "name": s["name"],
+                "latitude": s["latitude"],
+                "longitude": s["longitude"],
+                "has_cloud_data": s["key"] in cloud_ids,
+                "has_weather_data": s["key"] in weather_ids,
+            }
+        )
+
+    stations.sort(key=lambda s: s["name"])
+    return stations
 
 
 def _parse_smhi_csv(csv_text: str) -> list[dict]:
@@ -244,19 +285,21 @@ def get_monthly_weather_data(station_id: str) -> dict:
         pass  # station may not have cloud data
 
     # --- Present weather / lightning (parameter 13) ---
+    has_lightning_data = False
     lightning_by_month: dict[int, dict] = defaultdict(
         lambda: {"total": 0, "lightning": 0}
     )
     try:
         weather_csv = _fetch_station_csv(PARAM_PRESENT_WEATHER, station_id)
         weather_rows = _parse_smhi_csv(weather_csv)
+        has_lightning_data = len(weather_rows) > 0
         for row in weather_rows:
             month = int(row["date"].split("-")[1])
             lightning_by_month[month]["total"] += 1
             if int(row["value"]) in LIGHTNING_CODES:
                 lightning_by_month[month]["lightning"] += 1
     except requests.HTTPError:
-        pass  # station may not have weather data
+        pass  # station does not have present weather data
 
     # --- Build monthly summary ---
     months = []
@@ -264,12 +307,15 @@ def get_monthly_weather_data(station_id: str) -> dict:
         cloud_values = cloud_by_month.get(m, [])
         cloud_avg = round(sum(cloud_values) / len(cloud_values), 1) if cloud_values else None
 
-        ldata = lightning_by_month[m]
-        lightning_pct = (
-            round((ldata["lightning"] / ldata["total"]) * 100, 2)
-            if ldata["total"] > 0
-            else None
-        )
+        if not has_lightning_data:
+            lightning_pct = None
+        else:
+            ldata = lightning_by_month[m]
+            lightning_pct = (
+                round((ldata["lightning"] / ldata["total"]) * 100, 2)
+                if ldata["total"] > 0
+                else None
+            )
 
         months.append(
             {
@@ -279,7 +325,11 @@ def get_monthly_weather_data(station_id: str) -> dict:
             }
         )
 
-    result = {"station_id": station_id, "months": months}
+    result = {
+        "station_id": station_id,
+        "has_lightning_data": has_lightning_data,
+        "months": months,
+    }
 
     # Persist to cache
     result_file.write_text(json.dumps(result), encoding="utf-8")
