@@ -386,6 +386,51 @@ h2 {
   color: #ffa726;
 }
 
+/* --- Station weights (under chart) --- */
+.station-weights {
+  margin-top: 1.2em;
+  padding-top: 1em;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.weights-label {
+  font-size: 0.78em;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.5em;
+}
+
+.weights-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+}
+
+.weight-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.35em 0.75em;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.82em;
+}
+
+.weight-name {
+  font-weight: 500;
+  color: #ccc;
+}
+
+.weight-meta {
+  color: #888;
+  font-size: 0.9em;
+}
+
 /* --- Recharts overrides --- */
 .recharts-default-tooltip {
   border-radius: 8px !important;

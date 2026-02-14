@@ -4,6 +4,7 @@ from flask_cors import CORS
 from smhi_service import (
     geocode_address,
     get_all_stations,
+    get_location_weather,
     get_monthly_weather_data,
     get_nearby_stations,
 )
@@ -53,6 +54,23 @@ def all_stations():
         return jsonify({"error": f"Failed to fetch stations: {e}"}), 500
 
     return jsonify({"stations": data})
+
+
+@app.route("/api/location-weather")
+def location_weather():
+    """Return blended weather data for an exact lat/lng using nearby stations."""
+    try:
+        lat = float(request.args["lat"])
+        lng = float(request.args["lng"])
+    except (KeyError, ValueError):
+        return jsonify({"error": "Missing or invalid 'lat' and 'lng' parameters"}), 400
+
+    try:
+        data = get_location_weather(lat, lng)
+    except Exception as e:
+        return jsonify({"error": f"Failed to compute location weather: {e}"}), 500
+
+    return jsonify(data)
 
 
 @app.route("/api/weather-data/<station_id>")

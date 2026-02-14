@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import AddressSearch from './components/AddressSearch'
-import StationSelector from './components/StationSelector'
 import WeatherChart from './components/WeatherChart'
 import StationExplorer from './components/StationExplorer'
 import './App.css'
@@ -8,47 +7,30 @@ import './App.css'
 function App() {
   const [page, setPage] = useState('search')
   const [location, setLocation] = useState(null)
-  const [stations, setStations] = useState([])
-  const [selectedStation, setSelectedStation] = useState(null)
   const [weatherData, setWeatherData] = useState(null)
-  const [loadingStations, setLoadingStations] = useState(false)
-  const [loadingData, setLoadingData] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   const handleLocationFound = async (loc) => {
     setLocation(loc)
-    setStations([])
-    setSelectedStation(null)
     setWeatherData(null)
-    setLoadingStations(true)
+    setError(null)
+    setLoading(true)
 
     try {
-      const res = await fetch(`/api/stations?lat=${loc.lat}&lng=${loc.lng}`)
+      const res = await fetch(`/api/location-weather?lat=${loc.lat}&lng=${loc.lng}`)
       const data = await res.json()
-      setStations(data.stations || [])
+      if (!res.ok || data.error) {
+        setError(data.error || 'Failed to load weather data.')
+      } else {
+        setWeatherData(data)
+      }
     } catch {
-      setStations([])
+      setError('Failed to connect to backend.')
     } finally {
-      setLoadingStations(false)
+      setLoading(false)
     }
   }
-
-  const handleStationSelect = async (stationId) => {
-    setSelectedStation(stationId)
-    setWeatherData(null)
-    setLoadingData(true)
-
-    try {
-      const res = await fetch(`/api/weather-data/${stationId}`)
-      const data = await res.json()
-      setWeatherData(data)
-    } catch {
-      setWeatherData(null)
-    } finally {
-      setLoadingData(false)
-    }
-  }
-
-  const selectedStationName = stations.find((s) => s.id === selectedStation)?.name
 
   return (
     <div className="app">
@@ -76,7 +58,7 @@ function App() {
         <>
           <AddressSearch
             onLocationFound={handleLocationFound}
-            isLoading={loadingStations}
+            isLoading={loading}
           />
 
           {location && (
@@ -85,23 +67,20 @@ function App() {
             </div>
           )}
 
-          {loadingStations && <p className="loading">Loading nearby stations...</p>}
-
-          <StationSelector
-            stations={stations}
-            selectedId={selectedStation}
-            onSelect={handleStationSelect}
-            isLoading={loadingData}
-          />
-
-          {loadingData && (
+          {loading && (
             <div className="loading">
-              <p>Fetching climate data&hellip; This may take a moment.</p>
+              <p>Estimating weather patterns&hellip; This may take a moment for first-time lookups.</p>
               <div className="spinner" />
             </div>
           )}
 
-          <WeatherChart data={weatherData} stationName={selectedStationName} />
+          {error && (
+            <div className="card" style={{ borderColor: 'rgba(229, 115, 115, 0.4)' }}>
+              <p className="error">{error}</p>
+            </div>
+          )}
+
+          <WeatherChart data={weatherData} locationName={location?.display_name} />
         </>
       )}
 

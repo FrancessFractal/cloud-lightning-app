@@ -335,3 +335,110 @@ def get_monthly_weather_data(station_id: str) -> dict:
     result_file.write_text(json.dumps(result), encoding="utf-8")
 
     return result
+
+
+def get_location_weather(lat: float, lng: float) -> dict:
+    """Estimate weather patterns at an exact location using inverse distance weighting.
+
+    Adaptively selects stations from the nearest candidates using a cumulative
+    weight threshold: stations are added (sorted by distance) until the next
+    one would contribute less than WEIGHT_THRESHOLD of the total.  At least
+    MIN_STATIONS are always included.
+
+    IDW power = 2:  weight_i = 1 / distance_i^2.
+
+    Returns:
+        {
+            "has_lightning_data": True/False,
+            "months": [ { "month": "Jan", "cloud_coverage_avg": ..., "lightning_probability": ... }, ... ],
+            "stations": [
+                { "id": "...", "name": "...", "distance_km": ..., "weight_pct": ... },
+                ...
+            ]
+        }
+    """
+    MIN_STATIONS = 2
+    WEIGHT_THRESHOLD = 0.02  # stop when next station adds < 2%
+    MIN_DIST = 0.1  # km – clamp to avoid division by zero
+
+    nearby = get_nearby_stations(lat, lng, count=10)  # larger candidate pool
+
+    if not nearby:
+        return {"has_lightning_data": False, "months": [], "stations": []}
+
+    # Adaptively select stations based on weight contribution
+    selected = []
+    for i, s in enumerate(nearby):
+        dist = max(s["distance_km"], MIN_DIST)
+        raw_weight = 1.0 / (dist ** 2)
+
+        if i >= MIN_STATIONS:
+            total_so_far = sum(sd["raw_weight"] for sd in selected)
+            if raw_weight / (total_so_far + raw_weight) < WEIGHT_THRESHOLD:
+                break
+
+        selected.append({"station": s, "raw_weight": raw_weight})
+
+    # Fetch per-station data (only for selected stations)
+    station_data = []
+    for sd in selected:
+        try:
+            data = get_monthly_weather_data(sd["station"]["id"])
+            station_data.append({**sd, "data": data})
+        except Exception:
+            pass  # skip stations that fail
+
+    if not station_data:
+        return {"has_lightning_data": False, "months": [], "stations": []}
+
+    # Normalize weights
+    total_weight = sum(sd["raw_weight"] for sd in station_data)
+    for sd in station_data:
+        sd["weight"] = sd["raw_weight"] / total_weight
+
+    # Blend monthly values
+    has_lightning = any(sd["data"].get("has_lightning_data") for sd in station_data)
+
+    months = []
+    for m_idx in range(12):
+        cloud_sum = 0.0
+        cloud_weight_sum = 0.0
+        lightning_sum = 0.0
+        lightning_weight_sum = 0.0
+
+        for sd in station_data:
+            w = sd["weight"]
+            month_data = sd["data"]["months"][m_idx]
+
+            if month_data["cloud_coverage_avg"] is not None:
+                cloud_sum += month_data["cloud_coverage_avg"] * w
+                cloud_weight_sum += w
+
+            if month_data["lightning_probability"] is not None:
+                lightning_sum += month_data["lightning_probability"] * w
+                lightning_weight_sum += w
+
+        cloud_avg = round(cloud_sum / cloud_weight_sum, 1) if cloud_weight_sum > 0 else None
+        lightning_pct = round(lightning_sum / lightning_weight_sum, 2) if lightning_weight_sum > 0 else None
+
+        months.append({
+            "month": MONTH_NAMES[m_idx],
+            "cloud_coverage_avg": cloud_avg,
+            "lightning_probability": lightning_pct,
+        })
+
+    stations_info = [
+        {
+            "id": sd["station"]["id"],
+            "name": sd["station"]["name"],
+            "distance_km": sd["station"]["distance_km"],
+            "weight_pct": round(sd["weight"] * 100, 1),
+        }
+        for sd in station_data
+    ]
+
+    return {
+        "has_lightning_data": has_lightning,
+        "months": months,
+        "stations": stations_info,
+    }

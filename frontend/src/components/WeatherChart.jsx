@@ -10,23 +10,31 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
-export default function WeatherChart({ data, stationName }) {
-  if (!data || data.months.length === 0) return null
+export default function WeatherChart({ data, locationName }) {
+  if (!data || !data.months || data.months.length === 0) return null
 
   const hasLightning = data.has_lightning_data
+  const stations = data.stations || []
+
+  // Shorten location to city/region (first two comma-separated parts)
+  const shortLocation = locationName
+    ? locationName.split(',').slice(0, 2).join(',').trim()
+    : null
 
   return (
     <div className="card chart-card">
-      <h2>Climate profile{stationName ? ` — ${stationName}` : ''}</h2>
+      <h2>Climate estimate{shortLocation ? ` — ${shortLocation}` : ''}</h2>
       <p className="hint">
-        Monthly averages based on historical observations
+        Weighted blend of {stations.length} nearby SMHI station{stations.length !== 1 ? 's' : ''}
       </p>
+
       {!hasLightning && (
         <p className="notice">
-          This station does not record present weather observations, so
-          lightning data is not available. Try a different station nearby.
+          None of the nearby stations record present weather observations, so
+          lightning data is not available.
         </p>
       )}
+
       <ResponsiveContainer width="100%" height={380}>
         <ComposedChart
           data={data.months}
@@ -97,6 +105,22 @@ export default function WeatherChart({ data, stationName }) {
           )}
         </ComposedChart>
       </ResponsiveContainer>
+
+      {stations.length > 0 && (
+        <div className="station-weights">
+          <p className="weights-label">Based on data from:</p>
+          <ul className="weights-list">
+            {stations.map((s) => (
+              <li key={s.id} className="weight-item">
+                <span className="weight-name">{s.name}</span>
+                <span className="weight-meta">
+                  {s.distance_km} km &middot; {s.weight_pct}% weight
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
