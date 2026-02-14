@@ -178,24 +178,90 @@ h3 {
   cursor: default;
 }
 
-/* --- Location badge --- */
+/* --- Location badge (collapsed search) --- */
 .location-badge {
   display: flex;
   align-items: center;
-  gap: 0.4em;
-  padding: 0.6em 1em;
+  justify-content: space-between;
+  gap: 0.6em;
+  width: 100%;
+  padding: 0.7em 1em;
   margin-bottom: 1.25em;
-  border-radius: 8px;
+  border-radius: 10px;
   background: rgba(102, 126, 234, 0.1);
   border: 1px solid rgba(102, 126, 234, 0.2);
-  font-size: 0.85em;
+  font-size: 0.88em;
   color: #b0b8e8;
   word-break: break-word;
+  text-align: left;
+  font-family: inherit;
+}
+
+.location-badge-btn {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.location-badge-btn:hover {
+  background: rgba(102, 126, 234, 0.18);
+  border-color: rgba(102, 126, 234, 0.4);
+}
+
+.location-badge-left {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  min-width: 0;
+}
+
+.location-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .location-icon {
   font-size: 1.1em;
   flex-shrink: 0;
+}
+
+.location-edit-hint {
+  flex-shrink: 0;
+  font-size: 0.82em;
+  color: #8090c8;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.location-badge-btn:hover .location-edit-hint {
+  opacity: 1;
+}
+
+/* --- Search card (expanded search) --- */
+.search-card {
+  padding: 1em 1.2em;
+  margin-bottom: 1.25em;
+  border-radius: 10px;
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.search-cancel {
+  display: inline-block;
+  margin-top: 0.5em;
+  padding: 0.3em 0.7em;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #888;
+  font-size: 0.8em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.search-cancel:hover {
+  color: #bbb;
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* --- Annual summary --- */
@@ -915,6 +981,19 @@ h3 {
 
   .search-form button {
     width: 100%;
+  }
+
+  .location-badge {
+    font-size: 0.82em;
+    padding: 0.6em 0.8em;
+  }
+
+  .location-edit-hint {
+    opacity: 1;
+  }
+
+  .search-card {
+    padding: 0.8em;
   }
 
   .insight-cards {

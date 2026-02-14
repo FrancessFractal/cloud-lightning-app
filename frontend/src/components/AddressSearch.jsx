@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-export default function AddressSearch({ onLocationFound, isLoading }) {
+export default function AddressSearch({ onLocationFound, isLoading, location }) {
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [highlighted, setHighlighted] = useState(-1)
@@ -9,20 +9,43 @@ export default function AddressSearch({ onLocationFound, isLoading }) {
   const [searching, setSearching] = useState(false)
   const [noResults, setNoResults] = useState(false)
 
+  // Collapsed = location is set and user hasn't clicked to edit
+  const [editing, setEditing] = useState(false)
+
   const wrapperRef = useRef(null)
+  const inputRef = useRef(null)
   const abortRef = useRef(null)
   const debounceRef = useRef(null)
+
+  // When a new location comes in from outside, collapse back
+  useEffect(() => {
+    if (location) {
+      setEditing(false)
+    }
+  }, [location])
 
   // Close dropdown on outside click
   useEffect(() => {
     const handleClick = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
         setOpen(false)
+        // If user clicks outside while editing but a location exists, collapse
+        if (location) setEditing(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
+  }, [location])
+
+  const expandToEdit = () => {
+    setEditing(true)
+    setQuery('')
+    setError(null)
+    setSuggestions([])
+    setNoResults(false)
+    // Focus input after render
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
 
   const fetchSuggestions = useCallback(async (q) => {
     if (q.length < 3) {
@@ -111,6 +134,13 @@ export default function AddressSearch({ onLocationFound, isLoading }) {
   }
 
   const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      setOpen(false)
+      setHighlighted(-1)
+      // Collapse back if there's already a location
+      if (location) setEditing(false)
+      return
+    }
     if (!open || suggestions.length === 0) return
 
     if (e.key === 'ArrowDown') {
@@ -119,18 +149,33 @@ export default function AddressSearch({ onLocationFound, isLoading }) {
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setHighlighted((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1))
-    } else if (e.key === 'Escape') {
-      setOpen(false)
-      setHighlighted(-1)
     }
   }
 
+  // --- Collapsed state: show location badge ---
+  if (location && !editing && !isLoading) {
+    return (
+      <button
+        className="location-badge location-badge-btn"
+        onClick={expandToEdit}
+        title="Click to change location"
+      >
+        <span className="location-badge-left">
+          <span className="location-icon">&#x1F4CD;</span>
+          <span className="location-name">{location.display_name}</span>
+        </span>
+        <span className="location-edit-hint">Change</span>
+      </button>
+    )
+  }
+
+  // --- Expanded state: show search form ---
   return (
-    <div className="card" ref={wrapperRef}>
-      <h2>Find a location</h2>
+    <div className="search-card" ref={wrapperRef}>
       <form onSubmit={handleSubmit} className="search-form">
         <div className="search-input-wrap">
           <input
+            ref={inputRef}
             type="text"
             value={query}
             onChange={handleChange}
@@ -139,6 +184,7 @@ export default function AddressSearch({ onLocationFound, isLoading }) {
             placeholder="Enter a Swedish address or city..."
             disabled={searching || isLoading}
             autoComplete="off"
+            autoFocus={!location}
           />
           {open && (suggestions.length > 0 || noResults) && (
             <ul className="suggestions">
@@ -166,6 +212,15 @@ export default function AddressSearch({ onLocationFound, isLoading }) {
           {searching ? 'Searching...' : 'Search'}
         </button>
       </form>
+      {location && !isLoading && (
+        <button
+          className="search-cancel"
+          type="button"
+          onClick={() => setEditing(false)}
+        >
+          Cancel
+        </button>
+      )}
       {error && <p className="error">{error}</p>}
     </div>
   )

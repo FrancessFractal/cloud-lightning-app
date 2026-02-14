@@ -117,19 +117,18 @@ function App() {
 
   const handleTabClick = useCallback((e, targetPage) => {
     e.preventDefault()
-    if (targetPage === page) return
     if (targetPage === 'explorer') {
+      if (page === 'explorer') return
       navigateTo('/stations', 'explorer', null)
     } else {
-      // Going back to search — restore the current location URL if one exists
-      const loc = locationRef.current
-      const url = loc ? buildLocationURL(loc) : '/'
-      navigateTo(url, 'search', loc)
-      if (loc && !weatherData) {
-        fetchWeather(loc, resolution)
-      }
+      // Always reset to a fresh search page
+      navigateTo('/', 'search', null)
+      setLocation(null)
+      locationRef.current = null
+      setWeatherData(null)
+      setError(null)
     }
-  }, [page, navigateTo, weatherData, resolution, fetchWeather])
+  }, [page, navigateTo])
 
   // --- Popstate: browser back/forward ---------------------------------------
 
@@ -210,17 +209,12 @@ function App() {
 
       {page === 'search' && (
         <>
-          {/* Location header */}
+          {/* Location search / badge */}
           <AddressSearch
             onLocationFound={handleLocationFound}
             isLoading={loading}
+            location={location}
           />
-
-          {location && (
-            <div className="location-badge">
-              <span className="location-icon">&#x1F4CD;</span> {location.display_name}
-            </div>
-          )}
 
           {loading && (
             <div className="loading">
