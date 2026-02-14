@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from geocoding import geocode_address
+from geocoding import autocomplete_address, geocode_address
 from stations import get_all_stations, get_nearby_stations
 from weather import get_location_weather, get_monthly_weather_data
 
@@ -12,6 +12,19 @@ CORS(app)
 @app.route("/api/hello")
 def hello():
     return jsonify({"message": "Hello from Python!"})
+
+
+@app.route("/api/autocomplete")
+def autocomplete():
+    """Return place suggestions for a partial address query."""
+    q = request.args.get("q", "").strip()
+    if len(q) < 3:
+        return jsonify({"suggestions": []})
+    try:
+        results = autocomplete_address(q)
+    except Exception:
+        results = []
+    return jsonify({"suggestions": results})
 
 
 @app.route("/api/search")
