@@ -7,6 +7,7 @@ export default function AddressSearch({ onLocationFound, isLoading }) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState(null)
   const [searching, setSearching] = useState(false)
+  const [noResults, setNoResults] = useState(false)
 
   const wrapperRef = useRef(null)
   const abortRef = useRef(null)
@@ -42,11 +43,14 @@ export default function AddressSearch({ onLocationFound, isLoading }) {
       )
       const data = await res.json()
       const results = data.suggestions || []
-      // Only update if we got results -- keeps previous suggestions visible
-      // while the user is mid-word (Nominatim does word-boundary matching)
       if (results.length > 0) {
         setSuggestions(results)
         setHighlighted(-1)
+        setNoResults(false)
+        setOpen(true)
+      } else {
+        setSuggestions([])
+        setNoResults(true)
         setOpen(true)
       }
     } catch (err) {
@@ -61,6 +65,7 @@ export default function AddressSearch({ onLocationFound, isLoading }) {
     const value = e.target.value
     setQuery(value)
     setError(null)
+    setNoResults(false)
 
     // Debounce autocomplete
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -135,18 +140,25 @@ export default function AddressSearch({ onLocationFound, isLoading }) {
             disabled={searching || isLoading}
             autoComplete="off"
           />
-          {open && suggestions.length > 0 && (
+          {open && (suggestions.length > 0 || noResults) && (
             <ul className="suggestions">
-              {suggestions.map((s, i) => (
-                <li
-                  key={`${s.lat}-${s.lng}`}
-                  className={`suggestion-item ${i === highlighted ? 'highlighted' : ''}`}
-                  onMouseDown={() => selectSuggestion(s)}
-                  onMouseEnter={() => setHighlighted(i)}
-                >
-                  {s.display_name}
-                </li>
-              ))}
+              {suggestions.length > 0
+                ? suggestions.map((s, i) => (
+                    <li
+                      key={`${s.lat}-${s.lng}`}
+                      className={`suggestion-item ${i === highlighted ? 'highlighted' : ''}`}
+                      onMouseDown={() => selectSuggestion(s)}
+                      onMouseEnter={() => setHighlighted(i)}
+                    >
+                      {s.display_name}
+                    </li>
+                  ))
+                : (
+                    <li className="suggestion-empty">
+                      No results for &ldquo;{query}&rdquo;
+                    </li>
+                  )
+              }
             </ul>
           )}
         </div>

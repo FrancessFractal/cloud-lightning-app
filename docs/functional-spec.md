@@ -32,13 +32,22 @@ is required.
 **How it works today:**
 
 - The user types into a search field. After 3 characters, suggestions appear
-  in a dropdown (autocomplete), narrowing as they type.
+  in a dropdown (autocomplete), narrowing as they type. If nothing matches,
+  the dropdown shows *"No results for '...'"* instead of silently stalling.
 - The user selects a suggestion (click or keyboard) or presses Search.
-- The app shows a chart with two data series:
-  - **Cloud coverage** (bar chart, left axis, 0–100%)
-  - **Lightning probability** (line chart, right axis, %)
-- Below the chart, the app lists which SMHI stations contributed to the
-  estimate, with their distance and weight.
+- The app shows:
+  - A **plain-language summary** sentence at the top of the chart card,
+    e.g. *"Clearest in June (52%). Cloudiest in December (79%). Lightning
+    peaks in July at 2.1%."* — so the user gets the answer without having
+    to study the chart.
+  - A **chart** with two data series:
+    - **Cloud coverage** (bar chart, left axis, 0–100%)
+    - **Lightning probability** (line chart, right axis, %)
+  - An **interactive map** showing the searched location (pin marker) and
+    each contributing SMHI station (circle markers sized by weight). Hovering
+    a station shows its name, distance, and weight percentage.
+  - A **station list** below the chart naming the contributing stations with
+    their distance and weight.
 
 **Key detail:** The data is not from a single weather station. The app finds
 the nearest stations, weights them by proximity (closer stations matter more),
@@ -62,6 +71,15 @@ themselves.
 The user switches via Day / Month / Year buttons above the chart. The chart
 re-fetches data for the new resolution instantly (or with a brief loading
 state for first-time lookups).
+
+**Yearly view extras:**
+
+- A **trend line** (dashed) is overlaid on the yearly bar chart, computed
+  via linear regression over the real (non-interpolated) data points. This
+  makes it immediately visible whether cloud coverage is increasing,
+  decreasing, or stable over the decades.
+- The plain-language summary adapts for yearly data, e.g. *"Cloud coverage
+  has decreased from ~66% in the 1950s to ~55% in the 2020s."*
 
 ### 3. Understand data gaps
 
@@ -107,6 +125,20 @@ A separate "All stations" tab shows:
 - **Filters** to narrow by data capability (All / Cloud + Lightning / Cloud
   only).
 
+### 6. See where the data comes from on a map
+
+> As a user, I want to see the spatial relationship between my location and the
+> contributing weather stations, so I can judge how representative the estimate
+> is.
+
+After a search, an interactive map appears below the chart showing:
+
+- A **pin marker** for the searched location.
+- **Circle markers** for each contributing SMHI station, sized proportionally
+  to their weight in the blend.
+- Hovering a station circle shows its name, distance (km), and weight (%).
+- The map auto-zooms to fit all markers.
+
 ---
 
 ## User journeys
@@ -116,14 +148,16 @@ A separate "All stations" tab shows:
 1. User opens the app, types "Visby" in the search box.
 2. Autocomplete shows suggestions; user selects "Visby, Gotlands kommun,
    Gotlands län, Sverige".
-3. The monthly chart loads. User sees that July and August have the lowest
-   cloud coverage (~50%) and a small lightning peak in summer.
-4. User clicks **Year** to check long-term trends. They notice cloud coverage
-   has been relatively stable since the 1960s.
-5. User clicks **Day** to find the precise sunniest window — late June shows
+3. The monthly chart loads. A summary sentence reads: *"Clearest in July
+   (50%). Cloudiest in December (81%). Lightning peaks in July at 1.8%."*
+4. Below the chart, a map shows the pin at Visby and two station circles on
+   Gotland and the mainland. The user can see how close the stations are.
+5. User clicks **Year** to check long-term trends. A dashed trend line shows
+   cloud coverage has been roughly stable. The summary confirms: *"Cloud
+   coverage has remained roughly stable from ~62% in the 1960s to ~58% in the
+   2020s."*
+6. User clicks **Day** to find the precise sunniest window — late June shows
    a consistent dip in cloudiness.
-6. User notes the chart says "Weighted blend of 2 nearby SMHI stations" and
-   sees which ones contributed.
 
 ### Journey B — "Why does my location show no lightning?"
 
@@ -139,11 +173,18 @@ A separate "All stations" tab shows:
 
 1. User searches for "Årsta" and switches to the Year view.
 2. Most years show solid blue bars, but 2006–2007 appear faded with dashed
-   borders.
+   borders. The trend line passes smoothly through the gap.
 3. User hovers over 2006 and reads: *"(estimated) — No observations,
    interpolated from neighbours."*
 4. The interpolation notice at the top of the chart confirms: *"Faded bars
    indicate periods with no station data — values are estimated."*
+
+### Journey D — "I typed something wrong"
+
+1. User types "Stokholm" (misspelled) in the search box.
+2. Autocomplete shows *"No results for 'Stokholm'"* — immediately signalling
+   the typo rather than silently showing stale results.
+3. User corrects to "Stockholm" and valid suggestions appear.
 
 ---
 
@@ -153,6 +194,7 @@ A separate "All stations" tab shows:
 |--------|-----------------|-------------|
 | **SMHI Open Data (Metobs)** | Historical weather observations from ~100+ Swedish stations. Parameters used: cloud coverage (param 16) and present weather / WMO codes (param 13). | Free, open data. |
 | **Nominatim (OpenStreetMap)** | Geocoding — converts addresses to coordinates. Powers the autocomplete and search. | Free with attribution; rate-limited. |
+| **OpenStreetMap tile servers** | Map tiles for the interactive station map. | Free with attribution. |
 
 ---
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import AddressSearch from './components/AddressSearch'
 import WeatherChart from './components/WeatherChart'
 import StationExplorer from './components/StationExplorer'
+import StationMap from './components/StationMap'
 import './App.css'
 
 function App() {
@@ -101,6 +102,13 @@ function App() {
             resolution={resolution}
             onResolutionChange={handleResolutionChange}
           />
+
+          {weatherData && location && (
+            <StationMap
+              center={[location.lat, location.lng]}
+              stations={weatherData.stations}
+            />
+          )}
         </>
       )}
 

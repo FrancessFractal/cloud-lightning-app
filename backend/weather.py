@@ -296,6 +296,8 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
         {
             "id": sd["station"]["id"],
             "name": sd["station"]["name"],
+            "latitude": sd["station"]["latitude"],
+            "longitude": sd["station"]["longitude"],
             "distance_km": sd["station"]["distance_km"],
             "weight_pct": round(sd["weight"] * 100, 1),
         }

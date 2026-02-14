@@ -160,6 +160,15 @@ h2 {
   color: #eee;
 }
 
+.suggestion-empty {
+  padding: 0.55em 1em;
+  font-size: 0.88em;
+  color: #777;
+  font-style: italic;
+  line-height: 1.4;
+  cursor: default;
+}
+
 /* --- Location badge --- */
 .location-badge {
   display: flex;
@@ -275,6 +284,18 @@ h2 {
   color: #777;
   font-size: 0.85em;
   margin: 0 0 0.6em;
+}
+
+/* --- Climate summary --- */
+.climate-summary {
+  padding: 0.6em 1em;
+  margin-bottom: 1em;
+  border-radius: 8px;
+  background: rgba(102, 126, 234, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.18);
+  color: #b0b8e8;
+  font-size: 0.88em;
+  line-height: 1.55;
 }
 
 /* --- Interpolation notice --- */
@@ -554,6 +575,24 @@ h2 {
 .weight-meta {
   color: #888;
   font-size: 0.9em;
+}
+
+/* --- Station map --- */
+.station-map-card {
+  padding: 1.2em;
+}
+
+.map-title {
+  font-size: 0.95em;
+  margin: 0 0 0.7em;
+  color: #ccc;
+}
+
+.map-container {
+  height: 260px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* --- Recharts overrides --- */
