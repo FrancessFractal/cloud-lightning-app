@@ -26,7 +26,7 @@ function factorRow(label, value, level, detail) {
 export default function DataConfidenceBadge({ quality }) {
   if (!quality) return null
 
-  const { level, coverage, depth, proximity, direction, median_obs } = quality
+  const { level, historical_data, station_coverage } = quality
   const info = LEVELS[level] || LEVELS.low
 
   return (
@@ -40,37 +40,30 @@ export default function DataConfidenceBadge({ quality }) {
 
       <div className="quality-bars">
         {factorRow(
-          'Data coverage',
-          coverage.value,
-          coverage.level,
-          `${coverage.value}%`,
+          'Station coverage',
+          station_coverage.value,
+          station_coverage.level,
+          '',
+        )}
+        {station_coverage.summary && (
+          <p className="quality-factor-summary">{station_coverage.summary}</p>
         )}
         {factorRow(
-          'Observation depth',
-          depth.value,
-          depth.level,
-          `${depth.value}%`,
+          'Historical data',
+          historical_data.value,
+          historical_data.level,
+          '',
         )}
-        {factorRow(
-          'Station proximity',
-          proximity.value,
-          proximity.level,
-          proximity.avg_km != null ? `${proximity.avg_km} km avg` : '',
-        )}
-        {factorRow(
-          'Directional coverage',
-          direction.value,
-          direction.level,
-          `${direction.spread_deg}\u00B0 spread`,
+        {historical_data.summary && (
+          <p className="quality-factor-summary">{historical_data.summary}</p>
         )}
       </div>
 
-      {median_obs > 0 && (
-        <div className="quality-meta">
-          <span className="quality-meta-item">
-            Median observations per point: {median_obs.toLocaleString()}
-          </span>
-        </div>
+      {level === 'low' && (
+        <p className="quality-warning" role="alert">
+          Results may be less reliable for this location due to limited
+          nearby station data.
+        </p>
       )}
     </div>
   )

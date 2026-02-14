@@ -318,7 +318,21 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
     else:
         points = _blend_fixed(station_data, has_lightning)
 
-    quality = compute_quality(points, resolution, station_data, lat, lng)
+    # Quality is always assessed against yearly data so it stays stable
+    # regardless of which resolution the user is viewing.  Yearly is the
+    # right baseline because each year stands on its own — gaps in the
+    # historical record (e.g. no data for 2006-2007) show up as missing
+    # points, whereas monthly/daily averages across years hide them.
+    if resolution == "year":
+        quality_points = points
+    else:
+        yearly_data = []
+        for sd in station_data:
+            ydata = get_station_weather_data(sd["station"]["id"], "year")
+            yearly_data.append({**sd, "data": ydata})
+        quality_points = _blend_yearly(yearly_data, has_lightning)
+
+    quality = compute_quality(quality_points, "year", station_data, lat, lng)
 
     stations_info = [
         {

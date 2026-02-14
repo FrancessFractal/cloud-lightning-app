@@ -368,6 +368,13 @@ h3 {
   line-height: 1;
 }
 
+.quality-factor-summary {
+  font-size: 0.82em;
+  color: #999;
+  line-height: 1.4;
+  margin: 0.1em 0 0.4em 1.4em;
+}
+
 /* Quality factor bars */
 .quality-bars {
   display: flex;
@@ -393,7 +400,7 @@ h3 {
 .dot-poor { background: #ef8b8b; }
 
 .quality-label {
-  flex: 0 0 145px;
+  flex: 0 0 130px;
   font-size: 0.85em;
   color: #aaa;
 }
@@ -434,6 +441,16 @@ h3 {
 .quality-meta-item {
   font-size: 0.82em;
   color: #888;
+}
+
+.quality-warning {
+  font-size: 0.85em;
+  color: #ef8b8b;
+  margin: 0.6em 0 0;
+  padding: 0.5em 0.7em;
+  background: rgba(239, 139, 139, 0.08);
+  border-radius: 6px;
+  line-height: 1.45;
 }
 
 /* Colorblind-safe: each level uses color + distinct icon (set in component).

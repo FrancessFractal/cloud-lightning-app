@@ -284,18 +284,6 @@ function App() {
             <DataConfidenceBadge quality={weatherData.quality} />
           )}
 
-          {/* Low-quality warning */}
-          {weatherData?.quality?.level === 'low' && (
-            <div className="estimation-warning" role="alert">
-              <span className="estimation-warning-icon" aria-hidden="true">&#9888;</span>
-              <span>
-                Data quality for this location is low — observations are sparse
-                or stations are far away. Results may be less reliable. Try a
-                location closer to a weather station for higher confidence.
-              </span>
-            </div>
-          )}
-
           {/* Data sources drawer */}
           {weatherData && (
             <DataSourcesDrawer
