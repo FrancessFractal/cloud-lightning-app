@@ -12,13 +12,19 @@ app = Flask(__name__)
 CORS(app)
 
 # Start background pre-loader unless explicitly disabled (e.g. in tests).
-# In Flask debug mode, Werkzeug spawns a child process (WERKZEUG_RUN_MAIN=true).
-# Only start the preloader in the actual server process to avoid duplicate work.
+#
+# Under Flask dev server: Werkzeug spawns a child process
+# (WERKZEUG_RUN_MAIN=true). Only start in the child to avoid duplicate work.
+#
+# Under gunicorn: each forked worker imports the module.  We only start the
+# preloader in worker #1 (gunicorn sets SERVER_SOFTWARE).  The file-based
+# cache is shared across workers, so only one needs to run it.
+_skip = os.environ.get("SKIP_PRELOAD") == "1"
 _is_reloader_parent = (
     os.environ.get("FLASK_DEBUG") == "1"
     and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
 )
-if os.environ.get("SKIP_PRELOAD") != "1" and not _is_reloader_parent:
+if not _skip and not _is_reloader_parent:
     start_preload()
 
 

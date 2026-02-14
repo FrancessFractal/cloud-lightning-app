@@ -1,7 +1,17 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+.cursor
+
 # Python
 backend/venv/
 backend/cache/
-__pycache__/
+backend/__pycache__/
+**/__pycache__/
 *.pyc
 
 # Node
@@ -10,14 +20,10 @@ frontend/dist/
 
 # Terraform
 terraform/.terraform/
-terraform/.terraform.lock.hcl
-terraform/*.tfstate
-terraform/*.tfstate.backup
-terraform/terraform.tfvars
+terraform/*.tfstate*
 
-# IDE
-.vscode/
-.idea/
+# Docs
+docs/
 
 # OS
 .DS_Store

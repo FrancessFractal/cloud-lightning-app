@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports:
+      - "80:80"
+    volumes:
+      - smhi_cache:/app/backend/cache
+    restart: unless-stopped
+
+volumes:
+  smhi_cache:

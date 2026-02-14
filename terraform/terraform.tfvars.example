@@ -1,0 +1,6 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# Do NOT commit terraform.tfvars — it may contain sensitive values.
+
+aws_region    = "eu-north-1"
+instance_type = "t3.small"
+ssh_key_name  = "my-key-pair"   # Must already exist in your AWS account
