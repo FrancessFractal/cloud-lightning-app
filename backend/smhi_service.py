@@ -10,13 +10,33 @@ Handles:
 
 import csv
 import io
+import json
 import math
+import os
+import time
 from collections import defaultdict
+from pathlib import Path
 
 import requests
 
 SMHI_BASE = "https://opendata-download-metobs.smhi.se/api/version/1.0"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+
+# Cache directory (sits next to this file)
+CACHE_DIR = Path(__file__).parent / "cache"
+CACHE_DIR.mkdir(exist_ok=True)
+
+# How long cached files stay fresh (seconds).
+# SMHI corrected-archive updates roughly monthly; 7 days is a safe middle ground.
+CACHE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60  # 7 days
+
+
+def _is_cache_fresh(path: Path) -> bool:
+    """Return True if a cached file exists and is younger than CACHE_MAX_AGE_SECONDS."""
+    if not path.exists():
+        return False
+    age = time.time() - path.stat().st_mtime
+    return age < CACHE_MAX_AGE_SECONDS
 
 # SMHI parameter IDs
 PARAM_CLOUD_COVERAGE = 16  # Total molnmängd (%)
@@ -162,18 +182,34 @@ def _parse_smhi_csv(csv_text: str) -> list[dict]:
 
 
 def _fetch_station_csv(parameter_id: int, station_id: str) -> str:
-    """Download the corrected-archive CSV for a parameter/station pair."""
+    """Download the corrected-archive CSV for a parameter/station pair.
+
+    Results are cached to disk under cache/csv/ so subsequent requests
+    for the same station+parameter are served instantly.
+    """
+    csv_cache = CACHE_DIR / "csv"
+    csv_cache.mkdir(exist_ok=True)
+    cache_file = csv_cache / f"param{parameter_id}_station{station_id}.csv"
+
+    if _is_cache_fresh(cache_file):
+        return cache_file.read_text(encoding="utf-8")
+
     url = (
         f"{SMHI_BASE}/parameter/{parameter_id}"
         f"/station/{station_id}/period/corrected-archive/data.csv"
     )
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
+
+    cache_file.write_text(resp.text, encoding="utf-8")
     return resp.text
 
 
 def get_monthly_weather_data(station_id: str) -> dict:
     """Fetch and aggregate cloud coverage and lightning data for a station.
+
+    Results are cached to disk as JSON so the expensive CSV parsing
+    only happens once per station.
 
     Returns:
         {
@@ -188,6 +224,14 @@ def get_monthly_weather_data(station_id: str) -> dict:
             ]
         }
     """
+    # Check result cache first
+    result_cache = CACHE_DIR / "results"
+    result_cache.mkdir(exist_ok=True)
+    result_file = result_cache / f"station_{station_id}.json"
+
+    if _is_cache_fresh(result_file):
+        return json.loads(result_file.read_text(encoding="utf-8"))
+
     # --- Cloud coverage (parameter 16) ---
     cloud_by_month: dict[int, list[float]] = defaultdict(list)
     try:
@@ -235,4 +279,9 @@ def get_monthly_weather_data(station_id: str) -> dict:
             }
         )
 
-    return {"station_id": station_id, "months": months}
+    result = {"station_id": station_id, "months": months}
+
+    # Persist to cache
+    result_file.write_text(json.dumps(result), encoding="utf-8")
+
+    return result
