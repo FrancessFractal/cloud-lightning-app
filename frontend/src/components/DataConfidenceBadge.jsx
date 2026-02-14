@@ -6,9 +6,11 @@ const LEVELS = {
 
 const DOT_CLS = { good: 'dot-good', fair: 'dot-fair', poor: 'dot-poor' }
 
+const BAR_CLS = { good: 'bar-high', fair: 'bar-medium', poor: 'bar-low' }
+
 function factorRow(label, value, level, detail) {
   const pct = Math.round(Math.max(0, Math.min(100, value)))
-  const barCls = pct >= 70 ? 'bar-high' : pct >= 40 ? 'bar-medium' : 'bar-low'
+  const barCls = BAR_CLS[level] || 'bar-low'
   return (
     <div className="quality-row" key={label}>
       <span className={`quality-dot ${DOT_CLS[level] || 'dot-poor'}`} />
