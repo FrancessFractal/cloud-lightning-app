@@ -14,15 +14,52 @@ const RESOLUTIONS = [
   { key: 'year', label: 'Yearly' },
 ]
 
+// ---------------------------------------------------------------------------
+// URL ↔ state helpers
+// ---------------------------------------------------------------------------
+
+function getStateFromURL() {
+  const path = window.location.pathname
+  const params = new URLSearchParams(window.location.search)
+
+  if (path === '/stations') {
+    return { page: 'explorer', location: null }
+  }
+
+  const lat = parseFloat(params.get('lat'))
+  const lng = parseFloat(params.get('lng'))
+  const name = params.get('name')
+
+  if (!isNaN(lat) && !isNaN(lng) && name) {
+    return { page: 'search', location: { lat, lng, display_name: name } }
+  }
+
+  return { page: 'search', location: null }
+}
+
+function buildLocationURL(loc) {
+  const params = new URLSearchParams({
+    lat: String(loc.lat),
+    lng: String(loc.lng),
+    name: loc.display_name,
+  })
+  return `/?${params.toString()}`
+}
+
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
+
 function App() {
-  const [page, setPage] = useState('search')
-  const [location, setLocation] = useState(null)
+  const initial = getStateFromURL()
+  const [page, setPage] = useState(initial.page)
+  const [location, setLocation] = useState(initial.location)
   const [weatherData, setWeatherData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [resolution, setResolution] = useState('month')
   const [activeLabel, setActiveLabel] = useState(null)
-  const locationRef = useRef(null)
+  const locationRef = useRef(initial.location)
 
   const fetchWeather = useCallback(async (loc, res) => {
     setWeatherData(null)
@@ -47,11 +84,73 @@ function App() {
     }
   }, [])
 
+  // Deep-link: auto-fetch weather if URL already contains a location on mount
+  const didMount = useRef(false)
+  useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true
+      if (initial.location) {
+        fetchWeather(initial.location, 'month')
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Navigation helpers ---------------------------------------------------
+
+  const navigateTo = useCallback((url, newPage, newLocation) => {
+    history.pushState(null, '', url)
+    setPage(newPage)
+    setLocation(newLocation)
+    locationRef.current = newLocation
+    // Reset weather state when navigating away from a location
+    if (!newLocation) {
+      setWeatherData(null)
+      setError(null)
+    }
+  }, [])
+
   const handleLocationFound = (loc) => {
-    setLocation(loc)
-    locationRef.current = loc
-    fetchWeather(loc, resolution)
+    navigateTo(buildLocationURL(loc), 'search', loc)
+    setResolution('month')
+    fetchWeather(loc, 'month')
   }
+
+  const handleTabClick = useCallback((e, targetPage) => {
+    e.preventDefault()
+    if (targetPage === page) return
+    if (targetPage === 'explorer') {
+      navigateTo('/stations', 'explorer', null)
+    } else {
+      // Going back to search — restore the current location URL if one exists
+      const loc = locationRef.current
+      const url = loc ? buildLocationURL(loc) : '/'
+      navigateTo(url, 'search', loc)
+      if (loc && !weatherData) {
+        fetchWeather(loc, resolution)
+      }
+    }
+  }, [page, navigateTo, weatherData, resolution, fetchWeather])
+
+  // --- Popstate: browser back/forward ---------------------------------------
+
+  useEffect(() => {
+    const onPopState = () => {
+      const { page: newPage, location: newLoc } = getStateFromURL()
+      setPage(newPage)
+      setLocation(newLoc)
+      locationRef.current = newLoc
+
+      if (newLoc) {
+        setResolution('month')
+        fetchWeather(newLoc, 'month')
+      } else {
+        setWeatherData(null)
+        setError(null)
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [fetchWeather])
 
   const handleResolutionChange = (res) => {
     setResolution(res)
@@ -93,18 +192,20 @@ function App() {
       </p>
 
       <nav className="tab-bar">
-        <button
+        <a
           className={`tab-btn ${page === 'search' ? 'active' : ''}`}
-          onClick={() => setPage('search')}
+          href="/"
+          onClick={(e) => handleTabClick(e, 'search')}
         >
           Search
-        </button>
-        <button
+        </a>
+        <a
           className={`tab-btn ${page === 'explorer' ? 'active' : ''}`}
-          onClick={() => setPage('explorer')}
+          href="/stations"
+          onClick={(e) => handleTabClick(e, 'explorer')}
         >
           All stations
-        </button>
+        </a>
       </nav>
 
       {page === 'search' && (

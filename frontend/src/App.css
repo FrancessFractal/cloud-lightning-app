@@ -51,6 +51,7 @@ h3 {
   font-size: 0.9em;
   font-family: inherit;
   cursor: pointer;
+  text-decoration: none;
   transition: color 0.15s, background 0.15s;
 }
 
