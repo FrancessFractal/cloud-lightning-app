@@ -2,16 +2,24 @@
 
 ## Purpose
 
-The Cloud & Lightning Explorer helps people understand the historical climate
-patterns of any location in Sweden. Given an address, it answers the questions:
-**How cloudy is it here, and how likely is lightning?** — broken down by time
-of year, with data spanning decades of SMHI observations.
+The Cloud & Lightning Explorer helps renewable energy companies assess the
+climate conditions at a potential client's address before committing to a solar
+panel installation. Given a street address, it answers: **How much sunlight
+does this location typically get, and what is the lightning risk?** — broken
+down by time of year, with data spanning decades of SMHI observations.
 
-It is not a forecast tool. It is a climate reference tool — useful for someone
-deciding where to move, planning seasonal activities, or simply curious about
-long-term weather trends at a specific place.
+Cloud coverage is the primary factor in solar energy yield: a location with
+consistently low cloud coverage will produce significantly more energy than a
+heavily overcast one. Lightning probability indicates the risk of electrical
+damage to rooftop installations and helps inform decisions about surge
+protection, equipment specifications, and insurance requirements.
 
-The UI prioritizes **clarity**, **transparency**, **progressive disclosure**,
+The app is not a forecast or an energy production calculator. It is a
+**climate reference tool** — an early step in the site assessment process,
+letting installers quickly screen a client's address before scheduling a
+physical visit.
+
+The UI prioritises **clarity**, **transparency**, **progressive disclosure**,
 and **trustworthiness** — always making it clear what is measured data vs.
 statistical estimates.
 
@@ -19,188 +27,211 @@ statistical estimates.
 
 ## Users
 
-The app is designed for a general Swedish audience — anyone who can type an
-address and read a chart. No account, login, or prior knowledge of meteorology
-is required.
+The primary user is a **solar energy company employee** (sales rep, site
+assessor, or project planner) evaluating whether a potential client's property
+is a good candidate for solar panel installation. They enter the client's
+address to get a quick climate read before investing time in a full site visit.
 
----
+Secondary users include the company's clients (homeowners) who may be shown the
+tool as part of a sales consultation, as well as municipal energy planners
+looking for location-level climate assessments.
 
-## Page layout
-
-After a successful search, the page is structured as follows:
-
-```
-Location Search / Header
-  Address input with autocomplete
-
-Annual Summary Section
-  Cloud area chart (compact, yearly)
-  Lightning line chart (compact, yearly)
-
-Insight Cards Row
-  Auto-generated cards: clearest period, cloudiest period, lightning peak, etc.
-
-Granularity Toggle: Daily | Monthly | Yearly
-
-Detailed Cloud Chart Panel
-  Area chart, full height
-
-Detailed Lightning Chart Panel
-  Line chart + confidence band, full height
-
-Data Confidence Badge
-  "Data Confidence: High — 92% Measured | 8% Estimated"
-
-Data Sources Drawer (collapsed by default)
-  Mini map with station markers
-  Station table: name, distance, weight
-  Explanation text
-```
+No account, login, or prior knowledge of meteorology is required.
 
 ---
 
 ## User stories
 
-### 1. Look up climate patterns for a location
+### 1. Screen a client's address for solar potential
 
-> As a user, I want to enter an address or city name and immediately see cloud
-> coverage and lightning probability for that place.
+> As a solar installer, I want to enter a client's street address and see how
+> cloudy their location is throughout the year, so I can quickly assess whether
+> it's worth scheduling a site visit.
 
-- The user types into a search field. After 3 characters, suggestions appear.
-  If nothing matches, the dropdown shows *"No results for '...'"*.
+- The user types the client's address into a search field. After 3 characters,
+  autocomplete suggestions appear via Nominatim. If nothing matches, the
+  dropdown shows *"No results for '...'"*.
 - The user selects a suggestion or presses Search.
 - The app shows:
-  - An **annual summary** (always-visible yearly overview) with compact cloud
-    and lightning charts.
-  - **Insight cards** — auto-generated from the data: *"Cloudiest: November
-    (76%)"*, *"Lightning peak: July (18%)"*, etc.
-  - **Detailed charts** — a cloud area chart and a lightning line chart, split
-    into separate vertically stacked panels with independent Y-axes.
-  - A **data confidence badge** showing the ratio of measured to estimated
-    data.
-  - A collapsible **data sources drawer** with a map and station table.
+  - **Insight cards** summarising the key findings — e.g. *"Clearest: June
+    (48%)"*, *"Cloudiest: December (81%)"* — giving an immediate sense of
+    the seasonal sun/cloud balance.
+  - A **cloud coverage bar chart** showing average cloud cover per month
+    (default view). Lower bars mean more sunlight — better for solar.
+  - A **LOESS trend line** on the cloud chart showing whether cloud conditions
+    are improving or worsening over the observed period.
+  - A **data quality badge** indicating how reliable the estimates are.
+  - A collapsible **data sources drawer** showing which weather stations
+    contribute to the estimate and how they are weighted.
 
-### 2. Change the time resolution
+### 2. Assess lightning risk for a rooftop installation
+
+> As a solar installer, I want to see the probability of lightning at a client's
+> location, so I can spec appropriate surge protection and factor risk into the
+> project quote.
+
+- When lightning data is available, a **lightning probability chart** appears
+  below the cloud chart, showing how risk varies across the year.
+- A **shaded confidence band** (95% Wilson score interval) shows how
+  statistically reliable each probability estimate is.
+- Tooltips show exact values:
+
+  ```
+  Lightning: 0.49%
+  Confidence interval: 0.44% – 0.56%
+  Data type: Measured
+  ```
+
+- Lightning values between 0% and 1% display as **"<1%"** for readability.
+- When none of the nearby stations record lightning data, the chart is hidden
+  and a notice explains the reason.
+
+### 3. Compare seasonal patterns at different time scales
 
 > As a user, I want to toggle between daily, monthly, and yearly views so I
-> can see both seasonal patterns and long-term trends.
+> can see both seasonal detail and long-term trends.
 
 | View    | What it shows                                              |
 |---------|------------------------------------------------------------|
 | **Daily** | 366 data points — one per calendar day, averaged across all years |
 | **Monthly** (default) | 12 data points — one per month, averaged across all years |
-| **Yearly** | One data point per year (e.g. 1952–2025) |
+| **Yearly** | One data point per year (e.g. 1952–2025) — long-term trends |
 
-The toggle is centered between the insight cards and the detailed charts.
-Switching resolution triggers a **300ms crossfade animation** on the detail
-charts. The annual summary always shows yearly data regardless of the selected
-resolution.
+The toggle sits between the insight cards and the detailed charts. Switching
+resolution triggers a **300ms crossfade animation** on the charts.
 
 **Yearly view extras:**
-- A LOESS trend curve is overlaid on the cloud area chart.
-- Insight cards summarize long-term trends (e.g. "Cloud trend: Decreasing
-  (66% → 55%)").
+- The LOESS trend curve highlights whether cloud cover has been increasing or
+  decreasing over decades — useful for understanding whether solar viability
+  at a location is improving.
+- Insight cards update to show long-term trends (e.g. *"Cloud trend: Decreasing
+  (66% → 55%)"*).
 
-### 3. See confidence intervals
+### 4. Understand data reliability
 
-> As a user, I want to see how confident the lightning estimate is, so I can
-> judge whether the probabilities are meaningful.
+> As an installer advising a client, I want to know how trustworthy the climate
+> data is for this address, so I can be transparent about the confidence level
+> of my assessment.
 
-The lightning chart panel displays a **shaded confidence band** between the
-upper and lower bounds of a 95% Wilson score interval. Tooltips show the
-exact interval for each data point:
+The **data quality badge** uses a report-card model with four factors:
 
-```
-Lightning: 0.49%
-Confidence interval: 0.44% – 0.56%
-Data type: Measured
-```
+| Factor | What it measures |
+|--------|-----------------|
+| **Data coverage** | % of time buckets with any observations |
+| **Observation depth** | Number of observations per bucket vs. expected baseline |
+| **Station proximity** | Weighted average distance to contributing stations |
+| **Directional coverage** | Angular spread of stations around the location |
 
-Lightning values between 0% and 1% are displayed as **"<1%"** in tooltips
-and insight cards for readability.
+Each factor is graded **good / fair / poor** with a colour-coded dot and
+progress bar. The overall quality level (High / Medium / Low) equals the worst
+individual factor — the weakest link determines confidence.
 
-### 4. Understand data gaps
+When overall quality is **"Low"**, a **warning banner** advises the user that
+results may be less reliable and suggests trying a location closer to a weather
+station.
 
-> As a user, I want to know when the chart is showing real observations vs.
-> estimates.
+### 5. Understand data gaps and estimates
+
+> As a user, I want to know when the chart shows real observations vs.
+> statistical fill-ins.
 
 - Gaps are filled by linear interpolation.
-- In the cloud area chart, measured data has a solid fill; estimated
-  (interpolated) segments use a **hatched SVG pattern** overlay, with a
-  legend swatch in the panel header.
-- Tooltips indicate whether a point is "Measured" or "Estimated".
-- The **data confidence badge** always shows the measured/estimated ratio with
-  a color-coded level and symbol: green checkmark (High, >85%), amber circle
-  (Medium, 60-85%), red warning (Low, <60%).
-- When more than 40% of the data is estimated (measured < 60%), a **warning
-  banner** appears beneath the badge explaining the situation and suggesting
-  the user try a location closer to a weather station.
+- In the cloud bar chart, measured data has solid fill; estimated (interpolated)
+  bars use a **faded fill with a dashed border**.
+- Tooltips label each point as "Measured" or "Estimated".
+- Confidence intervals on the lightning chart are suppressed when fewer than
+  30 observations underlie a data point, preventing misleadingly wide bands.
 
-### 5. Understand lightning data availability
+### 6. Inspect the data sources
 
-> As a user, I want to know if lightning data is available for my location.
-
-When none of the nearby stations have lightning data:
-- The lightning chart panel is hidden entirely.
-- A notice explains the reason.
-
-### 6. See where the data comes from
-
-> As a user, I want to see the spatial relationship between my location and the
-> contributing stations.
+> As a user, I want to see exactly which weather stations are informing the
+> estimate for my address, and how far away they are.
 
 The **data sources drawer** (collapsed by default, with a **250ms slide
-animation** on expand/collapse) contains:
+animation**) contains:
 - A mini map with the searched location (pin) and stations (circles sized by
   weight).
-- A table listing each station with distance and weight percentage.
+- A table listing each station with distance (km) and weight (%).
 - An explanation: *"Data is calculated using weighted averages from nearby
   weather stations. Closer stations contribute more to final values."*
 
-### 7. Explore all SMHI stations
+### 7. Explore the full station network
 
-A separate "All stations" tab shows a searchable, filterable table of every
-active SMHI station with their data capabilities.
+> As an installer planning expansion into a new region, I want to browse all
+> SMHI stations to understand the overall coverage of weather data across Sweden.
+
+A separate **"All stations"** tab provides:
+- Summary statistics: total stations, stations with cloud+lightning, cloud only.
+- An interactive **map of Sweden** with all stations colour-coded by data
+  capability (green = cloud + lightning, amber = cloud only).
+- A searchable, filterable table of every station with coordinates and data
+  flags.
+- Filters by capability and a name search that updates both the table and map.
 
 ---
 
 ## User journeys
 
-### Journey A — "Should I move to Visby?"
+### Journey A — "New lead in Malmö — quick screening"
 
-1. User opens the app, types "Visby".
+1. A sales rep receives an enquiry from a homeowner in Malmö. They open the
+   app and type the client's street address.
 2. Selects from autocomplete suggestions.
-3. The annual summary shows long-term yearly trends at a glance.
-4. Insight cards read: *"Clearest July (50%)"*, *"Cloudiest December (81%)"*,
-   *"Lightning peak July (1.8%)"*.
-5. The monthly detail charts show the seasonal pattern with cloud area and
-   lightning line + confidence band.
-6. The data confidence badge shows "High — 100% Measured".
-7. User expands the data sources drawer to see the stations on a map.
-8. User clicks **Yearly** to see the LOESS trend curve. Insight cards update
-   to show the long-term direction.
+3. Insight cards read: *"Clearest: June (48%)"*, *"Cloudiest: December (79%)"*,
+   *"Lightning peak: July (1.2%)"*.
+4. The monthly cloud bar chart shows a clear summer dip — June through August
+   have the lowest cloud coverage, meaning the best solar yield.
+5. The lightning chart shows a modest summer peak, well under 2% — no
+   unusual risk that would require special equipment.
+6. Data quality badge shows "High" — confident in the estimate.
+7. The rep notes the findings and schedules a site visit, knowing the climate
+   data supports a viable installation.
 
-### Journey B — "Why does my location show no lightning?"
+### Journey B — "Comparing two client addresses in the pipeline"
 
-1. User searches for a rural northern location.
-2. Charts load; the lightning panel is absent.
-3. A notice explains that no nearby stations record lightning data.
-4. User opens the "All stations" tab to explore which stations have lightning
-   data.
+1. An assessor has two pending leads: one in Gothenburg, one in Sundsvall.
+2. They search the Gothenburg address first, note the key insights and
+   switch to the yearly view. Cloud cover has been gradually decreasing over
+   30 years — a positive trend for solar.
+3. They search the Sundsvall address next. Higher year-round cloud coverage
+   but very low lightning risk.
+4. They use the comparison to prioritise the Gothenburg lead, where the
+   climate data is more favourable, while flagging Sundsvall as viable but
+   with lower expected yield.
 
-### Journey C — "How confident is this data?"
+### Journey C — "Client in a remote location near the Norwegian border"
 
-1. User searches for "Årsta" and switches to Yearly view.
-2. The data confidence badge shows "Medium — 72% Measured".
-3. Tooltips on individual bars show "Estimated" for the gap years.
-4. The lightning confidence band is wider in years with fewer observations,
-   narrower in years with many.
+1. An assessor searches for a client's rural property in western Sweden.
+2. Charts load, but the data quality badge shows "Low" with poor station
+   proximity and poor directional coverage (all stations are to the east).
+3. A warning banner appears explaining that results may be less reliable.
+4. The assessor expands the data sources drawer and sees that the nearest
+   station is 120 km away. They understand the estimate is rough.
+5. They note in the client file that a physical site visit with on-site
+   irradiance measurement is essential — the climate tool alone isn't
+   sufficient for this location.
 
-### Journey D — "I typed something wrong"
+### Journey D — "Scoping a new service region in Norrbotten"
 
-1. User types "Stokholm" (misspelled).
-2. Autocomplete shows *"No results for 'Stokholm'"*.
-3. User corrects to "Stockholm" and valid suggestions appear.
+1. A project planner is evaluating whether to expand the company's service
+   area into Norrbotten. They open the "All stations" tab.
+2. The map shows sparse station coverage in inland areas, with most stations
+   along the coast.
+3. They filter to "Cloud + Lightning" to see which areas have full data.
+4. They search for a specific town, note the nearest stations, and search
+   that address on the main page to check cloud patterns.
+5. They use the yearly view to check the LOESS trend — cloud cover has been
+   stable, not worsening. Combined with the midnight sun effect in summer,
+   they decide the region is worth exploring further.
+
+### Journey E — "Client site with no lightning data"
+
+1. An assessor searches for a client's address in northern Sweden.
+2. The cloud chart loads normally, but the lightning chart is absent.
+3. A notice explains that no nearby stations record lightning observations.
+4. The assessor notes they'll need a separate source for lightning risk
+   assessment (e.g. SMHI's lightning location data) and proceeds with the
+   cloud coverage data for the initial evaluation.
 
 ---
 
@@ -216,10 +247,14 @@ active SMHI station with their data capabilities.
 
 ## What the app does NOT do
 
-- **It is not a weather forecast.** It shows historical averages.
+- **It is not a weather forecast.** It shows historical averages over decades.
+- **It is not an energy yield calculator.** It does not estimate kWh output —
+  that requires panel specs, roof angle, shading analysis, etc.
+- **It does not replace a physical site assessment.** It is a screening tool
+  to inform go/no-go decisions before committing to a visit.
 - **It does not cover locations outside Sweden.**
-- **It only shows cloud coverage and lightning probability** — not
-  temperature, precipitation, wind, etc.
+- **It only shows cloud coverage and lightning probability** — not temperature,
+  precipitation, wind, solar irradiance, or other parameters.
 - **It does not require an account or store any user data.**
 
 ---
@@ -231,20 +266,10 @@ active SMHI station with their data capabilities.
   **Escape** to clear. Focus is indicated with a visible border highlight.
 - **Colorblind safety:** The cloud (blue) and lightning (amber) channels are
   perceptually distant under protanopia, deuteranopia, and tritanopia. The
-  confidence badge uses both color and a **distinct symbol** (checkmark,
-  circle, warning triangle) so levels are identifiable without color alone.
-- **Contrast:** All secondary text colors have been verified to meet WCAG AA
+  data quality badge uses both colour and a **distinct symbol** (checkmark,
+  circle, warning triangle) so levels are identifiable without colour alone.
+- **Contrast:** All secondary text colours have been verified to meet WCAG AA
   minimum contrast ratios (4.5:1 for normal text) against the dark background.
 - **Screen reader hints:** Chart panels have `role="img"` with descriptive
-  `aria-label` attributes. The confidence badge uses `role="status"`. The
+  `aria-label` attributes. The quality badge uses `role="status"`. The
   drawer toggle uses `aria-expanded`.
-
----
-
-## Animations
-
-| Interaction | Duration | Easing | Notes |
-|-------------|----------|--------|-------|
-| Granularity toggle | 300ms | ease | Opacity crossfade on detail charts |
-| Drawer expand/collapse | 250ms | ease | max-height slide + chevron rotation |
-| Chevron rotation | 200ms | ease | CSS transform on `.drawer-chevron` |
