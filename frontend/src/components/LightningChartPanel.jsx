@@ -21,9 +21,23 @@ export default function LightningChartPanel({
   const isDaily = resolution === 'day'
   const isYearly = resolution === 'year'
 
-  const chartData = useMemo(
+  const interpolated = useMemo(
     () => interpolateGaps(data.points, ['lightning_probability']),
     [data.points],
+  )
+
+  // Compute a ci_band field (upper − lower) so we can render a proper
+  // stacked area band without hardcoding a background colour.
+  const chartData = useMemo(
+    () =>
+      interpolated.map((p) => ({
+        ...p,
+        ci_band:
+          p.lightning_lower != null && p.lightning_upper != null
+            ? p.lightning_upper - p.lightning_lower
+            : null,
+      })),
+    [interpolated],
   )
 
   const [focusIdx, setFocusIdx] = useState(null)
@@ -123,17 +137,17 @@ export default function LightningChartPanel({
           />
           <Tooltip content={renderTooltip} />
 
-          {/* Confidence band */}
+          {/* Confidence band — stacked: invisible base + visible gap */}
           {hasBands && (
             <Area
               type="monotone"
-              dataKey="lightning_upper"
+              dataKey="lightning_lower"
+              stackId="ci"
               stroke="none"
-              fill={BAND_FILL}
-              fillOpacity={1}
+              fill="transparent"
               dot={false}
               connectNulls
-              name="Upper bound"
+              name="Lower bound"
               legendType="none"
               isAnimationActive={false}
             />
@@ -141,13 +155,14 @@ export default function LightningChartPanel({
           {hasBands && (
             <Area
               type="monotone"
-              dataKey="lightning_lower"
+              dataKey="ci_band"
+              stackId="ci"
               stroke="none"
-              fill="#1a1a2e"
+              fill={BAND_FILL}
               fillOpacity={1}
               dot={false}
               connectNulls
-              name="Lower bound"
+              name="Confidence band"
               legendType="none"
               isAnimationActive={false}
             />
