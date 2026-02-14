@@ -20,7 +20,8 @@ from smhi_client import (
     MONTH_NAMES,
     PARAM_CLOUD_COVERAGE,
     PARAM_PRESENT_WEATHER,
-    fetch_and_parse_csv,
+    fetch_station_csv,
+    parse_smhi_csv,
     read_result_cache,
     write_result_cache,
 )
@@ -62,22 +63,25 @@ def _wilson_interval(successes: int, total: int, z: float = 1.96):
 def _fetch_raw_observations(station_id: str):
     """Fetch and parse cloud + weather CSVs for a station.
 
-    Uses ``fetch_and_parse_csv`` which keeps parsed rows in memory so
-    resolution switches don't re-read/re-parse the same files.
+    Reads CSV from the file cache (or downloads first), parses it, and
+    returns the rows.  Parsed data is NOT kept in memory — it's discarded
+    after aggregation so that only one station's data is in RAM at a time.
 
     Returns (cloud_rows, weather_rows, has_lightning_data).
     Each row is a dict with keys: date, time, value, quality.
     """
     cloud_rows = []
     try:
-        cloud_rows = fetch_and_parse_csv(PARAM_CLOUD_COVERAGE, station_id)
+        csv_text = fetch_station_csv(PARAM_CLOUD_COVERAGE, station_id)
+        cloud_rows = parse_smhi_csv(csv_text)
     except requests.HTTPError:
         pass
 
     weather_rows = []
     has_lightning_data = False
     try:
-        weather_rows = fetch_and_parse_csv(PARAM_PRESENT_WEATHER, station_id)
+        csv_text = fetch_station_csv(PARAM_PRESENT_WEATHER, station_id)
+        weather_rows = parse_smhi_csv(csv_text)
         has_lightning_data = len(weather_rows) > 0
     except requests.HTTPError:
         pass
@@ -265,12 +269,12 @@ def get_monthly_weather_data(station_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _prefetch_csvs(station_ids: list[str]) -> None:
-    """Download and parse CSVs for multiple stations in parallel.
+def _download_csvs(station_ids: list[str]) -> None:
+    """Download CSVs for multiple stations in parallel (disk only).
 
-    This warms both the on-disk CSV cache and the in-memory parsed-row
-    cache so that subsequent ``get_station_weather_data`` calls are instant.
-    Only stations whose CSVs are not already cached will trigger network I/O.
+    Only downloads to the file cache — does NOT parse into memory.
+    This keeps memory usage minimal on small instances while still
+    parallelising the slow network I/O.
     """
     tasks = []
     for sid in station_ids:
@@ -279,14 +283,14 @@ def _prefetch_csvs(station_ids: list[str]) -> None:
 
     def _fetch(param_id, sid):
         try:
-            fetch_and_parse_csv(param_id, sid)
+            fetch_station_csv(param_id, sid)
         except Exception:
             pass  # individual station failures are handled later
 
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = [pool.submit(_fetch, p, s) for p, s in tasks]
         for f in as_completed(futures):
-            f.result()  # propagate unexpected exceptions
+            f.result()
 
 
 def get_location_weather(lat: float, lng: float, resolution: str = "month") -> dict:
@@ -314,19 +318,21 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
 
     selected = select_stations(nearby)
 
-    # --- Parallel CSV pre-fetch (only for cache misses) -----------------------
-    # Check which stations actually need CSV data (no result cache hit).
-    # For stations that are already fully cached, skip the expensive CSV
-    # read+parse entirely.
+    # --- Parallel CSV download (only for cache misses) ------------------------
+    # Download CSV files to disk for any station that doesn't have a result
+    # cache yet.  This parallelises the slow network I/O without loading
+    # large CSVs into memory.
     uncached_ids = [
         sd["station"]["id"]
         for sd in selected
         if read_result_cache(sd["station"]["id"], resolution) is None
     ]
     if uncached_ids:
-        _prefetch_csvs(uncached_ids)
+        _download_csvs(uncached_ids)
 
-    # Fetch per-station data (hits result cache for pre-computed stations)
+    # Fetch per-station data.  Stations with a result cache are instant.
+    # For uncached stations, get_station_weather_data reads + parses + aggregates
+    # one station at a time, keeping memory usage bounded.
     station_data = []
     for sd in selected:
         try:

@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type (t3.small recommended for 2 GB RAM)"
+  description = "EC2 instance type"
   type        = string
   default     = "t3.small"
 }

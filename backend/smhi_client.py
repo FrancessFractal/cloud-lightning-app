@@ -90,11 +90,9 @@ _station_list_cache: dict[int, tuple[float, list[dict]]] = {}
 _station_list_lock = threading.Lock()
 
 # Parsed CSV rows keyed by (parameter_id, station_id).
-# Populated on first parse and shared across resolutions so that e.g.
-# switching from "month" to "day" doesn't re-read + re-parse the same file.
-# Capped at 30 entries (~10 stations x 2 params + headroom) to avoid
-# holding hundreds of MB of parsed rows in memory.
-_PARSED_CSV_MAX_ENTRIES = 30
+# Only used by fetch_and_parse_csv (not the main request path).
+# Kept very small to minimise memory on small instances.
+_PARSED_CSV_MAX_ENTRIES = 2
 _parsed_csv_cache: dict[tuple[int, str], tuple[float, list[dict]]] = {}
 _parsed_csv_lock = threading.Lock()
 
