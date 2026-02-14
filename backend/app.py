@@ -1,12 +1,25 @@
+import os
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from geocoding import autocomplete_address, geocode_address
+from preloader import get_preload_status, start_preload
 from stations import get_all_stations, get_nearby_stations
 from weather import get_location_weather, get_station_weather_data
 
 app = Flask(__name__)
 CORS(app)
+
+# Start background pre-loader unless explicitly disabled (e.g. in tests).
+# In Flask debug mode, Werkzeug spawns a child process (WERKZEUG_RUN_MAIN=true).
+# Only start the preloader in the actual server process to avoid duplicate work.
+_is_reloader_parent = (
+    os.environ.get("FLASK_DEBUG") == "1"
+    and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
+)
+if os.environ.get("SKIP_PRELOAD") != "1" and not _is_reloader_parent:
+    start_preload()
 
 
 @app.route("/api/hello")
@@ -101,5 +114,11 @@ def weather_data(station_id):
     return jsonify(data)
 
 
+@app.route("/api/preload-status")
+def preload_status():
+    """Return the current state of the background data pre-loader."""
+    return jsonify(get_preload_status())
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, threaded=True)

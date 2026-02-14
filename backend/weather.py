@@ -11,6 +11,7 @@ Data quality assessment lives in ``quality.py``.
 import calendar
 import math
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
@@ -19,8 +20,7 @@ from smhi_client import (
     MONTH_NAMES,
     PARAM_CLOUD_COVERAGE,
     PARAM_PRESENT_WEATHER,
-    fetch_station_csv,
-    parse_smhi_csv,
+    fetch_and_parse_csv,
     read_result_cache,
     write_result_cache,
 )
@@ -62,21 +62,22 @@ def _wilson_interval(successes: int, total: int, z: float = 1.96):
 def _fetch_raw_observations(station_id: str):
     """Fetch and parse cloud + weather CSVs for a station.
 
+    Uses ``fetch_and_parse_csv`` which keeps parsed rows in memory so
+    resolution switches don't re-read/re-parse the same files.
+
     Returns (cloud_rows, weather_rows, has_lightning_data).
     Each row is a dict with keys: date, time, value, quality.
     """
     cloud_rows = []
     try:
-        cloud_csv = fetch_station_csv(PARAM_CLOUD_COVERAGE, station_id)
-        cloud_rows = parse_smhi_csv(cloud_csv)
+        cloud_rows = fetch_and_parse_csv(PARAM_CLOUD_COVERAGE, station_id)
     except requests.HTTPError:
         pass
 
     weather_rows = []
     has_lightning_data = False
     try:
-        weather_csv = fetch_station_csv(PARAM_PRESENT_WEATHER, station_id)
-        weather_rows = parse_smhi_csv(weather_csv)
+        weather_rows = fetch_and_parse_csv(PARAM_PRESENT_WEATHER, station_id)
         has_lightning_data = len(weather_rows) > 0
     except requests.HTTPError:
         pass
@@ -264,13 +265,38 @@ def get_monthly_weather_data(station_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _prefetch_csvs(station_ids: list[str]) -> None:
+    """Download and parse CSVs for multiple stations in parallel.
+
+    This warms both the on-disk CSV cache and the in-memory parsed-row
+    cache so that subsequent ``get_station_weather_data`` calls are instant.
+    Only stations whose CSVs are not already cached will trigger network I/O.
+    """
+    tasks = []
+    for sid in station_ids:
+        tasks.append((PARAM_CLOUD_COVERAGE, sid))
+        tasks.append((PARAM_PRESENT_WEATHER, sid))
+
+    def _fetch(param_id, sid):
+        try:
+            fetch_and_parse_csv(param_id, sid)
+        except Exception:
+            pass  # individual station failures are handled later
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(_fetch, p, s) for p, s in tasks]
+        for f in as_completed(futures):
+            f.result()  # propagate unexpected exceptions
+
+
 def get_location_weather(lat: float, lng: float, resolution: str = "month") -> dict:
     """Estimate weather patterns at an exact location.
 
     1. Fetches a pool of nearby station candidates.
     2. Adaptively selects which stations to use.
-    3. Fetches data for each selected station at the given *resolution*.
-    4. Blends values using inverse distance weighting.
+    3. Downloads CSVs for all stations in parallel (if not cached).
+    4. Aggregates each station at the given *resolution*.
+    5. Blends values using inverse distance weighting.
     """
     if resolution not in VALID_RESOLUTIONS:
         resolution = "month"
@@ -288,7 +314,19 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
 
     selected = select_stations(nearby)
 
-    # Fetch per-station data
+    # --- Parallel CSV pre-fetch (only for cache misses) -----------------------
+    # Check which stations actually need CSV data (no result cache hit).
+    # For stations that are already fully cached, skip the expensive CSV
+    # read+parse entirely.
+    uncached_ids = [
+        sd["station"]["id"]
+        for sd in selected
+        if read_result_cache(sd["station"]["id"], resolution) is None
+    ]
+    if uncached_ids:
+        _prefetch_csvs(uncached_ids)
+
+    # Fetch per-station data (hits result cache for pre-computed stations)
     station_data = []
     for sd in selected:
         try:

@@ -12,11 +12,12 @@ dependency flow.
 
 Key boundaries:
 - `app.py` — routes only, no business logic
-- `weather.py` — aggregation and interpolation logic
+- `weather.py` — aggregation, interpolation logic, parallel CSV pre-fetching
 - `quality.py` — data quality assessment (report-card model)
 - `stations.py` — station queries and adaptive selection
-- `smhi_client.py` — SMHI API access, CSV parsing, file cache
+- `smhi_client.py` — SMHI API access, CSV parsing, file + memory cache
+- `preloader.py` — background pre-loader (downloads all station data on startup)
 - `geocoding.py` — Nominatim address lookup (independent of SMHI)
 
 Do not add business logic to `app.py`. Do not add HTTP/routing concerns to
-the other modules.
+the other modules. The preloader can be disabled via `SKIP_PRELOAD=1`.

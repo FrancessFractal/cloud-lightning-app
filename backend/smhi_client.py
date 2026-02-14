@@ -6,6 +6,7 @@ CSV parsing, and file-based caching.  No business logic lives here.
 
 import csv
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -78,6 +79,27 @@ def write_result_cache(station_id: str, resolution: str, data: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# In-memory caches
+# ---------------------------------------------------------------------------
+
+# Station lists change very rarely (station additions are exceptional).
+# Cache them in memory for 24 hours to avoid an API round-trip per request.
+_STATION_LIST_TTL = 24 * 60 * 60  # 24 hours
+
+_station_list_cache: dict[int, tuple[float, list[dict]]] = {}
+_station_list_lock = threading.Lock()
+
+# Parsed CSV rows keyed by (parameter_id, station_id).
+# Populated on first parse and shared across resolutions so that e.g.
+# switching from "month" to "day" doesn't re-read + re-parse the same file.
+# Capped at 30 entries (~10 stations x 2 params + headroom) to avoid
+# holding hundreds of MB of parsed rows in memory.
+_PARSED_CSV_MAX_ENTRIES = 30
+_parsed_csv_cache: dict[tuple[int, str], tuple[float, list[dict]]] = {}
+_parsed_csv_lock = threading.Lock()
+
+
+# ---------------------------------------------------------------------------
 # HTTP + CSV parsing
 # ---------------------------------------------------------------------------
 
@@ -85,12 +107,27 @@ def write_result_cache(station_id: str, resolution: str, data: dict) -> None:
 def fetch_station_list(parameter_id: int) -> list[dict]:
     """Fetch all stations for a given SMHI parameter.
 
+    Results are cached in memory for 24 h so only the first call per
+    parameter hits the SMHI API.
+
     Returns list of dicts: {key, name, latitude, longitude, active}
     """
+    now = time.time()
+    with _station_list_lock:
+        if parameter_id in _station_list_cache:
+            ts, data = _station_list_cache[parameter_id]
+            if now - ts < _STATION_LIST_TTL:
+                return data
+
     url = f"{SMHI_BASE}/parameter/{parameter_id}.json"
     resp = requests.get(url, timeout=15)
     resp.raise_for_status()
-    return resp.json().get("station", [])
+    data = resp.json().get("station", [])
+
+    with _station_list_lock:
+        _station_list_cache[parameter_id] = (now, data)
+
+    return data
 
 
 def fetch_station_csv(parameter_id: int, station_id: str) -> str:
@@ -115,6 +152,35 @@ def fetch_station_csv(parameter_id: int, station_id: str) -> str:
 
     cache_file.write_text(resp.text, encoding="utf-8")
     return resp.text
+
+
+def fetch_and_parse_csv(parameter_id: int, station_id: str) -> list[dict]:
+    """Fetch (or read cached) CSV and return parsed rows.
+
+    Combines ``fetch_station_csv`` + ``parse_smhi_csv`` with an in-memory
+    cache so that switching resolution for the same station doesn't re-read
+    and re-parse the same multi-MB file.
+    """
+    key = (parameter_id, station_id)
+    now = time.time()
+
+    with _parsed_csv_lock:
+        if key in _parsed_csv_cache:
+            ts, rows = _parsed_csv_cache[key]
+            if now - ts < CACHE_MAX_AGE_SECONDS:
+                return rows
+
+    csv_text = fetch_station_csv(parameter_id, station_id)
+    rows = parse_smhi_csv(csv_text)
+
+    with _parsed_csv_lock:
+        # Evict oldest entries if we'd exceed the cap.
+        if len(_parsed_csv_cache) >= _PARSED_CSV_MAX_ENTRIES and key not in _parsed_csv_cache:
+            oldest_key = min(_parsed_csv_cache, key=lambda k: _parsed_csv_cache[k][0])
+            del _parsed_csv_cache[oldest_key]
+        _parsed_csv_cache[key] = (now, rows)
+
+    return rows
 
 
 def parse_smhi_csv(csv_text: str) -> list[dict]:
