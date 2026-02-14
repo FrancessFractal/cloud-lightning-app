@@ -1,0 +1,21 @@
+---
+description: Backend module structure — read backend/README.md before modifying backend code
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Backend Structure
+
+Before modifying backend Python files, read `backend/README.md` for the module
+overview. It describes each module's responsibility, public functions, and
+dependency flow.
+
+Key boundaries:
+- `app.py` — routes only, no business logic
+- `weather.py` — aggregation and interpolation logic
+- `stations.py` — station queries and adaptive selection
+- `smhi_client.py` — SMHI API access, CSV parsing, file cache
+- `geocoding.py` — Nominatim address lookup (independent of SMHI)
+
+Do not add business logic to `app.py`. Do not add HTTP/routing concerns to
+the other modules.

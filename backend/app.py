@@ -1,13 +1,9 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from smhi_service import (
-    geocode_address,
-    get_all_stations,
-    get_location_weather,
-    get_monthly_weather_data,
-    get_nearby_stations,
-)
+from geocoding import geocode_address
+from stations import get_all_stations, get_nearby_stations
+from weather import get_location_weather, get_monthly_weather_data
 
 app = Flask(__name__)
 CORS(app)
