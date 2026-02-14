@@ -11,7 +11,7 @@ resource "aws_instance" "app" {
   iam_instance_profile   = aws_iam_instance_profile.ec2.name
 
   root_block_device {
-    volume_size = 20 # GB — enough for Docker images + SMHI cache
+    volume_size = 30 # GB — AMI minimum + room for Docker images + SMHI cache
     volume_type = "gp3"
   }
 

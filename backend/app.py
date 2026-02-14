@@ -11,15 +11,14 @@ from weather import get_location_weather, get_station_weather_data
 app = Flask(__name__)
 CORS(app)
 
-# Start background pre-loader unless explicitly disabled (e.g. in tests).
+# Background pre-loader: downloads all station data on startup so every
+# location query is fast.  Disabled by default in production (SKIP_PRELOAD=1)
+# because it uses ~1 GB of RAM and can overwhelm small instances.  The
+# on-demand parallel fetching in weather.py is fast enough for most use.
 #
-# Under Flask dev server: Werkzeug spawns a child process
-# (WERKZEUG_RUN_MAIN=true). Only start in the child to avoid duplicate work.
-#
-# Under gunicorn: each forked worker imports the module.  We only start the
-# preloader in worker #1 (gunicorn sets SERVER_SOFTWARE).  The file-based
-# cache is shared across workers, so only one needs to run it.
-_skip = os.environ.get("SKIP_PRELOAD") == "1"
+# To enable: set SKIP_PRELOAD to anything other than "1".
+# In Flask debug mode the reloader parent is skipped to avoid duplicate work.
+_skip = os.environ.get("SKIP_PRELOAD", "1") == "1"
 _is_reloader_parent = (
     os.environ.get("FLASK_DEBUG") == "1"
     and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
