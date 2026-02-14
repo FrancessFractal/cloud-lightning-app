@@ -11,7 +11,8 @@ climate estimate for that location.
 | Module | Responsibility | Public functions | Dependencies |
 |---|---|---|---|
 | `app.py` | Flask routes — HTTP request/response layer only | Routes: `/api/search`, `/api/stations`, `/api/all-stations`, `/api/location-weather`, `/api/weather-data/<id>` | `geocoding`, `stations`, `weather` |
-| `weather.py` | Core business logic — per-station aggregation (day/month/year resolution) and multi-station IDW interpolation | `get_station_weather_data(station_id, resolution)`, `get_location_weather(lat, lng, resolution)` | `smhi_client`, `stations` |
+| `weather.py` | Core business logic — per-station aggregation (day/month/year resolution) and multi-station IDW interpolation | `get_station_weather_data(station_id, resolution)`, `get_location_weather(lat, lng, resolution)` | `smhi_client`, `stations`, `quality` |
+| `quality.py` | Data quality assessment — report-card model grading coverage, observation depth, station proximity, and directional coverage | `compute_quality(points, resolution, station_data, target_lat, target_lng)`, `EMPTY_QUALITY` | (none — pure computation) |
 | `stations.py` | Station discovery, listing, geographic math, and adaptive station selection | `haversine_km()`, `get_nearby_stations()`, `get_all_stations()`, `select_stations()` | `smhi_client` |
 | `smhi_client.py` | SMHI API data access — HTTP calls, CSV parsing, file cache | `fetch_station_list()`, `fetch_station_csv()`, `parse_smhi_csv()`, `read_result_cache(station_id, resolution)`, `write_result_cache(station_id, resolution, data)` | (external: SMHI API) |
 | `geocoding.py` | Address-to-coordinates via Nominatim (OpenStreetMap) | `geocode_address()` | (external: Nominatim API) |
@@ -24,7 +25,8 @@ app.py
  ├── stations.py        → smhi_client.py → SMHI API
  └── weather.py
       ├── smhi_client.py
-      └── stations.py
+      ├── stations.py
+      └── quality.py    (pure computation, no external deps)
 ```
 
 No circular dependencies. `smhi_client.py` and `geocoding.py` are leaf modules

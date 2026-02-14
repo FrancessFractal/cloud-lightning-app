@@ -13,6 +13,7 @@ dependency flow.
 Key boundaries:
 - `app.py` — routes only, no business logic
 - `weather.py` — aggregation and interpolation logic
+- `quality.py` — data quality assessment (report-card model)
 - `stations.py` — station queries and adaptive selection
 - `smhi_client.py` — SMHI API access, CSV parsing, file cache
 - `geocoding.py` — Nominatim address lookup (independent of SMHI)
