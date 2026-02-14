@@ -3,9 +3,11 @@
 Contains the core business logic:
 - Aggregating raw SMHI observations into summaries at day/month/year resolution.
 - Blending multiple stations into a location estimate via IDW.
+- Wilson score confidence intervals for lightning probability.
 """
 
 import calendar
+import math
 from collections import defaultdict
 
 import requests
@@ -23,6 +25,30 @@ from smhi_client import (
 from stations import get_nearby_stations, select_stations
 
 VALID_RESOLUTIONS = ("day", "month", "year")
+
+
+# ---------------------------------------------------------------------------
+# Statistical helpers
+# ---------------------------------------------------------------------------
+
+
+def _wilson_interval(successes: int, total: int, z: float = 1.96):
+    """95% Wilson score confidence interval for a binomial proportion.
+
+    Returns (lower_pct, upper_pct) as percentages, or (None, None) if no data.
+    """
+    if total == 0:
+        return None, None
+    p = successes / total
+    denom = 1 + z**2 / total
+    center = (p + z**2 / (2 * total)) / denom
+    margin = (z / denom) * math.sqrt(
+        p * (1 - p) / total + z**2 / (4 * total**2)
+    )
+    return (
+        round(max(0, center - margin) * 100, 2),
+        round(min(1, center + margin) * 100, 2),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -60,6 +86,31 @@ def _fetch_raw_observations(station_id: str):
 # ---------------------------------------------------------------------------
 
 
+def _make_point(label, cloud_values, lightning_bucket, has_lightning_data):
+    """Build a single data point dict with cloud avg, lightning stats, and CI."""
+    cloud_avg = (
+        round(sum(cloud_values) / len(cloud_values), 1) if cloud_values else None
+    )
+
+    lightning_pct = None
+    lightning_lower = None
+    lightning_upper = None
+    if has_lightning_data and lightning_bucket and lightning_bucket["total"] > 0:
+        total = lightning_bucket["total"]
+        hits = lightning_bucket["lightning"]
+        lightning_pct = round((hits / total) * 100, 2)
+        lightning_lower, lightning_upper = _wilson_interval(hits, total)
+
+    return {
+        "label": label,
+        "cloud_coverage_avg": cloud_avg,
+        "lightning_probability": lightning_pct,
+        "lightning_lower": lightning_lower,
+        "lightning_upper": lightning_upper,
+        "obs_count": len(cloud_values),
+    }
+
+
 def _aggregate_monthly(cloud_rows, weather_rows, has_lightning_data):
     """Aggregate into 12 monthly points (all-time averages)."""
     cloud_by_month: dict[int, list[float]] = defaultdict(list)
@@ -76,22 +127,15 @@ def _aggregate_monthly(cloud_rows, weather_rows, has_lightning_data):
         if int(row["value"]) in LIGHTNING_CODES:
             lightning_by_month[month]["lightning"] += 1
 
-    points = []
-    for m in range(1, 13):
-        cloud_values = cloud_by_month.get(m, [])
-        cloud_avg = (
-            round(sum(cloud_values) / len(cloud_values), 1) if cloud_values else None
+    return [
+        _make_point(
+            MONTH_NAMES[m - 1],
+            cloud_by_month.get(m, []),
+            lightning_by_month.get(m),
+            has_lightning_data,
         )
-        lightning_pct = _lightning_pct(lightning_by_month.get(m), has_lightning_data)
-        points.append(
-            {
-                "label": MONTH_NAMES[m - 1],
-                "cloud_coverage_avg": cloud_avg,
-                "lightning_probability": lightning_pct,
-                "obs_count": len(cloud_values),
-            }
-        )
-    return points
+        for m in range(1, 13)
+    ]
 
 
 def _aggregate_daily(cloud_rows, weather_rows, has_lightning_data):
@@ -99,7 +143,7 @@ def _aggregate_daily(cloud_rows, weather_rows, has_lightning_data):
     cloud_by_day: dict[tuple[int, int], list[float]] = defaultdict(list)
     for row in cloud_rows:
         parts = row["date"].split("-")
-        key = (int(parts[1]), int(parts[2]))  # (month, day)
+        key = (int(parts[1]), int(parts[2]))
         cloud_by_day[key].append(row["value"])
 
     lightning_by_day: dict[tuple[int, int], dict] = defaultdict(
@@ -114,25 +158,16 @@ def _aggregate_daily(cloud_rows, weather_rows, has_lightning_data):
 
     points = []
     for m in range(1, 13):
-        days_in_month = calendar.monthrange(2000, m)[1]  # use leap year for max days
+        days_in_month = calendar.monthrange(2000, m)[1]
         for d in range(1, days_in_month + 1):
             key = (m, d)
-            cloud_values = cloud_by_day.get(key, [])
-            cloud_avg = (
-                round(sum(cloud_values) / len(cloud_values), 1)
-                if cloud_values
-                else None
-            )
-            lightning_pct = _lightning_pct(
-                lightning_by_day.get(key), has_lightning_data
-            )
             points.append(
-                {
-                    "label": f"{MONTH_NAMES[m - 1]} {d:02d}",
-                    "cloud_coverage_avg": cloud_avg,
-                    "lightning_probability": lightning_pct,
-                    "obs_count": len(cloud_values),
-                }
+                _make_point(
+                    f"{MONTH_NAMES[m - 1]} {d:02d}",
+                    cloud_by_day.get(key, []),
+                    lightning_by_day.get(key),
+                    has_lightning_data,
+                )
             )
     return points
 
@@ -155,33 +190,15 @@ def _aggregate_yearly(cloud_rows, weather_rows, has_lightning_data):
 
     all_years = sorted(set(cloud_by_year.keys()) | set(lightning_by_year.keys()))
 
-    points = []
-    for year in all_years:
-        cloud_values = cloud_by_year.get(year, [])
-        cloud_avg = (
-            round(sum(cloud_values) / len(cloud_values), 1) if cloud_values else None
+    return [
+        _make_point(
+            str(year),
+            cloud_by_year.get(year, []),
+            lightning_by_year.get(year),
+            has_lightning_data,
         )
-        lightning_pct = _lightning_pct(
-            lightning_by_year.get(year), has_lightning_data
-        )
-        points.append(
-            {
-                "label": str(year),
-                "cloud_coverage_avg": cloud_avg,
-                "lightning_probability": lightning_pct,
-                "obs_count": len(cloud_values),
-            }
-        )
-    return points
-
-
-def _lightning_pct(bucket, has_lightning_data):
-    """Compute lightning probability % from a {total, lightning} bucket."""
-    if not has_lightning_data:
-        return None
-    if bucket is None or bucket["total"] == 0:
-        return None
-    return round((bucket["lightning"] / bucket["total"]) * 100, 2)
+        for year in all_years
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +273,7 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
             "resolution": resolution,
             "points": [],
             "stations": [],
+            "measured_pct": 0,
         }
 
     selected = select_stations(nearby)
@@ -275,6 +293,7 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
             "resolution": resolution,
             "points": [],
             "stations": [],
+            "measured_pct": 0,
         }
 
     # Normalize weights
@@ -284,13 +303,15 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
 
     has_lightning = any(sd["data"].get("has_lightning_data") for sd in station_data)
 
-    # Determine point count from the first station (all stations at same
-    # resolution produce the same number of points for day/month; for year
-    # they may differ, so we use the union of labels).
     if resolution == "year":
         points = _blend_yearly(station_data, has_lightning)
     else:
         points = _blend_fixed(station_data, has_lightning)
+
+    # Compute measured percentage for confidence badge
+    total_pts = len(points)
+    measured_pts = sum(1 for p in points if p.get("obs_count", 0) > 0)
+    measured_pct = round((measured_pts / total_pts) * 100, 1) if total_pts > 0 else 0
 
     stations_info = [
         {
@@ -309,6 +330,48 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
         "resolution": resolution,
         "points": points,
         "stations": stations_info,
+        "measured_pct": measured_pct,
+    }
+
+
+def _blend_point(label, station_entries, has_lightning):
+    """Blend a single data point across weighted station entries.
+
+    Each entry is (weight, point_dict).
+    """
+    cloud_sum = 0.0
+    cloud_w = 0.0
+    lightning_sum = 0.0
+    lightning_w = 0.0
+    lower_sum = 0.0
+    lower_w = 0.0
+    upper_sum = 0.0
+    upper_w = 0.0
+    obs_total = 0
+
+    for w, pt in station_entries:
+        obs_total += pt.get("obs_count", 0)
+
+        if pt["cloud_coverage_avg"] is not None:
+            cloud_sum += pt["cloud_coverage_avg"] * w
+            cloud_w += w
+        if pt["lightning_probability"] is not None:
+            lightning_sum += pt["lightning_probability"] * w
+            lightning_w += w
+        if pt.get("lightning_lower") is not None:
+            lower_sum += pt["lightning_lower"] * w
+            lower_w += w
+        if pt.get("lightning_upper") is not None:
+            upper_sum += pt["lightning_upper"] * w
+            upper_w += w
+
+    return {
+        "label": label,
+        "cloud_coverage_avg": round(cloud_sum / cloud_w, 1) if cloud_w > 0 else None,
+        "lightning_probability": round(lightning_sum / lightning_w, 2) if lightning_w > 0 else None,
+        "lightning_lower": round(lower_sum / lower_w, 2) if lower_w > 0 else None,
+        "lightning_upper": round(upper_sum / upper_w, 2) if upper_w > 0 else None,
+        "obs_count": obs_total,
     }
 
 
@@ -318,44 +381,20 @@ def _blend_fixed(station_data, has_lightning):
     points = []
     for idx in range(num_points):
         label = station_data[0]["data"]["points"][idx]["label"]
-        cloud_sum = 0.0
-        cloud_w = 0.0
-        lightning_sum = 0.0
-        lightning_w = 0.0
-        obs_total = 0
-
-        for sd in station_data:
-            w = sd["weight"]
-            pt = sd["data"]["points"][idx]
-            obs_total += pt.get("obs_count", 0)
-
-            if pt["cloud_coverage_avg"] is not None:
-                cloud_sum += pt["cloud_coverage_avg"] * w
-                cloud_w += w
-            if pt["lightning_probability"] is not None:
-                lightning_sum += pt["lightning_probability"] * w
-                lightning_w += w
-
-        points.append(
-            {
-                "label": label,
-                "cloud_coverage_avg": round(cloud_sum / cloud_w, 1) if cloud_w > 0 else None,
-                "lightning_probability": round(lightning_sum / lightning_w, 2) if lightning_w > 0 else None,
-                "obs_count": obs_total,
-            }
-        )
+        entries = [
+            (sd["weight"], sd["data"]["points"][idx]) for sd in station_data
+        ]
+        points.append(_blend_point(label, entries, has_lightning))
     return points
 
 
 def _blend_yearly(station_data, has_lightning):
     """Blend stations for yearly resolution (variable-length point arrays)."""
-    # Collect the union of all year labels
     all_labels = {}
     for sd in station_data:
         for pt in sd["data"]["points"]:
             all_labels[pt["label"]] = True
 
-    # Build a lookup per station: label -> point
     station_lookups = []
     for sd in station_data:
         lookup = {pt["label"]: pt for pt in sd["data"]["points"]}
@@ -363,30 +402,10 @@ def _blend_yearly(station_data, has_lightning):
 
     points = []
     for label in sorted(all_labels.keys()):
-        cloud_sum = 0.0
-        cloud_w = 0.0
-        lightning_sum = 0.0
-        lightning_w = 0.0
-        obs_total = 0
-
+        entries = []
         for w, lookup in station_lookups:
             pt = lookup.get(label)
-            if pt is None:
-                continue
-            obs_total += pt.get("obs_count", 0)
-            if pt["cloud_coverage_avg"] is not None:
-                cloud_sum += pt["cloud_coverage_avg"] * w
-                cloud_w += w
-            if pt["lightning_probability"] is not None:
-                lightning_sum += pt["lightning_probability"] * w
-                lightning_w += w
-
-        points.append(
-            {
-                "label": label,
-                "cloud_coverage_avg": round(cloud_sum / cloud_w, 1) if cloud_w > 0 else None,
-                "lightning_probability": round(lightning_sum / lightning_w, 2) if lightning_w > 0 else None,
-                "obs_count": obs_total,
-            }
-        )
+            if pt is not None:
+                entries.append((w, pt))
+        points.append(_blend_point(label, entries, has_lightning))
     return points
