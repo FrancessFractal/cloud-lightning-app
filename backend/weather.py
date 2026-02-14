@@ -86,6 +86,12 @@ def _fetch_raw_observations(station_id: str):
 # ---------------------------------------------------------------------------
 
 
+# Minimum observations required for a confidence interval to be meaningful.
+# Below this threshold the Wilson interval can be absurdly wide (e.g. [0%-79%]
+# from a single observation) and distorts the chart.
+MIN_CI_OBSERVATIONS = 30
+
+
 def _make_point(label, cloud_values, lightning_bucket, has_lightning_data):
     """Build a single data point dict with cloud avg, lightning stats, and CI."""
     cloud_avg = (
@@ -99,7 +105,8 @@ def _make_point(label, cloud_values, lightning_bucket, has_lightning_data):
         total = lightning_bucket["total"]
         hits = lightning_bucket["lightning"]
         lightning_pct = round((hits / total) * 100, 2)
-        lightning_lower, lightning_upper = _wilson_interval(hits, total)
+        if total >= MIN_CI_OBSERVATIONS:
+            lightning_lower, lightning_upper = _wilson_interval(hits, total)
 
     return {
         "label": label,
@@ -267,13 +274,23 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
 
     nearby = get_nearby_stations(lat, lng, count=10)
 
+    empty_quality = {
+        "score": 0,
+        "level": "low",
+        "coverage_pct": 0,
+        "depth_score": 0,
+        "proximity_score": 0,
+        "avg_distance_km": None,
+        "median_obs": 0,
+    }
+
     if not nearby:
         return {
             "has_lightning_data": False,
             "resolution": resolution,
             "points": [],
             "stations": [],
-            "measured_pct": 0,
+            "quality": empty_quality,
         }
 
     selected = select_stations(nearby)
@@ -293,7 +310,7 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
             "resolution": resolution,
             "points": [],
             "stations": [],
-            "measured_pct": 0,
+            "quality": empty_quality,
         }
 
     # Normalize weights
@@ -308,10 +325,7 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
     else:
         points = _blend_fixed(station_data, has_lightning)
 
-    # Compute measured percentage for confidence badge
-    total_pts = len(points)
-    measured_pts = sum(1 for p in points if p.get("obs_count", 0) > 0)
-    measured_pct = round((measured_pts / total_pts) * 100, 1) if total_pts > 0 else 0
+    quality = _compute_quality(points, resolution, station_data)
 
     stations_info = [
         {
@@ -330,7 +344,102 @@ def get_location_weather(lat: float, lng: float, resolution: str = "month") -> d
         "resolution": resolution,
         "points": points,
         "stations": stations_info,
-        "measured_pct": measured_pct,
+        "quality": quality,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Data quality assessment
+# ---------------------------------------------------------------------------
+
+# Expected observations per data point for "well-covered" data.
+# A typical SMHI station reports several times per day across decades.
+_GOOD_OBS = {
+    "day": 30,      # ~30 observations for one calendar day across years
+    "month": 500,   # ~500 observations for one month across years
+    "year": 2000,   # ~2000 observations in a single year
+}
+
+# Station distance scoring: closer is better, beyond 100 km is poor.
+_PROX_IDEAL_KM = 10
+_PROX_POOR_KM = 100
+
+
+def _compute_quality(points, resolution, station_data):
+    """Compute a multi-factor data quality assessment.
+
+    Returns a dict with:
+      score        (0-100)  composite quality score
+      level        "high" | "medium" | "low"
+      coverage_pct (0-100)  % of points with any observations
+      depth_score  (0-100)  how much observation depth vs. expected
+      proximity_score (0-100) based on weighted station distances
+      avg_distance_km  weighted avg distance of stations
+      median_obs   median obs_count across points
+    """
+    total_pts = len(points)
+    if total_pts == 0:
+        return {
+            "score": 0, "level": "low",
+            "coverage_pct": 0, "depth_score": 0, "proximity_score": 0,
+            "avg_distance_km": None, "median_obs": 0,
+        }
+
+    # --- 1. Coverage: % of points with any data (vs. fully interpolated) ---
+    obs_counts = [p.get("obs_count", 0) for p in points]
+    coverage_pct = round(sum(1 for o in obs_counts if o > 0) / total_pts * 100, 1)
+
+    # --- 2. Depth: how much data backs each point vs. expected baseline ---
+    good = _GOOD_OBS.get(resolution, 500)
+    per_point_depth = [min(o / good, 1.0) for o in obs_counts]
+    depth_score = round(sum(per_point_depth) / total_pts * 100, 1)
+
+    # Median obs
+    sorted_obs = sorted(obs_counts)
+    mid = total_pts // 2
+    median_obs = (
+        sorted_obs[mid]
+        if total_pts % 2 == 1
+        else (sorted_obs[mid - 1] + sorted_obs[mid]) // 2
+    )
+
+    # --- 3. Proximity: weighted average distance of contributing stations ---
+    avg_dist = sum(
+        sd["station"]["distance_km"] * sd["weight"] for sd in station_data
+    )
+    avg_distance_km = round(avg_dist, 1)
+
+    # Map distance to a 0-100 score
+    if avg_dist <= _PROX_IDEAL_KM:
+        proximity_score = 100.0
+    elif avg_dist >= _PROX_POOR_KM:
+        proximity_score = 0.0
+    else:
+        proximity_score = round(
+            (1 - (avg_dist - _PROX_IDEAL_KM) / (_PROX_POOR_KM - _PROX_IDEAL_KM))
+            * 100, 1
+        )
+
+    # --- Composite score: weighted blend ---
+    # Coverage matters most (no data = no value), depth second, proximity third
+    score = round(coverage_pct * 0.30 + depth_score * 0.45 + proximity_score * 0.25, 1)
+    score = max(0, min(100, score))
+
+    if score >= 70:
+        level = "high"
+    elif score >= 40:
+        level = "medium"
+    else:
+        level = "low"
+
+    return {
+        "score": score,
+        "level": level,
+        "coverage_pct": coverage_pct,
+        "depth_score": depth_score,
+        "proximity_score": proximity_score,
+        "avg_distance_km": avg_distance_km,
+        "median_obs": median_obs,
     }
 
 

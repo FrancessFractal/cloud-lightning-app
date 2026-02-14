@@ -163,6 +163,41 @@ export function fmtLightning(val) {
 }
 
 /**
+ * Return an array of "round" year labels to show as XAxis ticks.
+ * Picks multiples of 5 or 10 depending on the span, plus always
+ * includes the first and last year so the range is clear.
+ */
+export function yearlyTicks(points) {
+  if (!points || points.length === 0) return undefined
+  const years = points.map((p) => parseInt(p.label, 10)).filter(Number.isFinite)
+  if (years.length <= 15) return undefined // show all — Recharts default
+
+  const min = Math.min(...years)
+  const max = Math.max(...years)
+  const span = max - min
+
+  // Choose a step that's a "nice" number
+  let step
+  if (span <= 30) step = 2
+  else if (span <= 60) step = 5
+  else step = 10
+
+  const ticks = []
+  // First round year >= min
+  const first = Math.ceil(min / step) * step
+  for (let y = first; y <= max; y += step) {
+    ticks.push(String(y))
+  }
+  // Always include the actual first and last year
+  const minStr = String(min)
+  const maxStr = String(max)
+  if (!ticks.includes(minStr)) ticks.unshift(minStr)
+  if (!ticks.includes(maxStr)) ticks.push(maxStr)
+
+  return ticks
+}
+
+/**
  * Format XAxis ticks for daily resolution -- show month names only.
  */
 export function dailyTickFormatter(label) {

@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import AddressSearch from './components/AddressSearch'
-import AnnualSummaryCharts from './components/AnnualSummaryCharts'
 import InsightCards from './components/InsightCards'
 import CloudChartPanel from './components/CloudChartPanel'
 import LightningChartPanel from './components/LightningChartPanel'
@@ -19,7 +18,6 @@ function App() {
   const [page, setPage] = useState('search')
   const [location, setLocation] = useState(null)
   const [weatherData, setWeatherData] = useState(null)
-  const [yearlyData, setYearlyData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [resolution, setResolution] = useState('month')
@@ -32,23 +30,15 @@ function App() {
     setLoading(true)
 
     try {
-      // Parallel fetch: selected resolution + yearly summary
-      const baseUrl = `/api/location-weather?lat=${loc.lat}&lng=${loc.lng}`
-      const [mainResp, yearResp] = await Promise.all([
-        fetch(`${baseUrl}&resolution=${res}`),
-        fetch(`${baseUrl}&resolution=year`),
-      ])
-      const mainData = await mainResp.json()
-      const yearData = await yearResp.json()
+      const resp = await fetch(
+        `/api/location-weather?lat=${loc.lat}&lng=${loc.lng}&resolution=${res}`
+      )
+      const data = await resp.json()
 
-      if (!mainResp.ok || mainData.error) {
-        setError(mainData.error || 'Failed to load weather data.')
+      if (!resp.ok || data.error) {
+        setError(data.error || 'Failed to load weather data.')
       } else {
-        setWeatherData(mainData)
-      }
-
-      if (yearResp.ok && !yearData.error) {
-        setYearlyData(yearData)
+        setWeatherData(data)
       }
     } catch {
       setError('Failed to connect to backend.')
@@ -60,7 +50,6 @@ function App() {
   const handleLocationFound = (loc) => {
     setLocation(loc)
     locationRef.current = loc
-    setYearlyData(null)
     fetchWeather(loc, resolution)
   }
 
@@ -145,9 +134,6 @@ function App() {
             </div>
           )}
 
-          {/* Annual summary (always yearly) */}
-          {yearlyData && <AnnualSummaryCharts data={yearlyData} />}
-
           {/* Insight cards */}
           {weatherData && <InsightCards data={weatherData} resolution={resolution} />}
 
@@ -192,20 +178,19 @@ function App() {
             </div>
           )}
 
-          {/* Data confidence badge */}
+          {/* Data quality badge */}
           {weatherData && (
-            <DataConfidenceBadge measuredPct={weatherData.measured_pct} />
+            <DataConfidenceBadge quality={weatherData.quality} />
           )}
 
-          {/* High-estimation warning */}
-          {weatherData && weatherData.measured_pct != null && weatherData.measured_pct < 60 && (
+          {/* Low-quality warning */}
+          {weatherData?.quality?.level === 'low' && (
             <div className="estimation-warning" role="alert">
               <span className="estimation-warning-icon" aria-hidden="true">&#9888;</span>
               <span>
-                More than 40% of the data shown is estimated (interpolated from
-                neighboring time periods). Results for this location may be less
-                reliable. Try a different location closer to a weather station
-                for higher confidence.
+                Data quality for this location is low — observations are sparse
+                or stations are far away. Results may be less reliable. Try a
+                location closer to a weather station for higher confidence.
               </span>
             </div>
           )}

@@ -3,7 +3,7 @@ import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { interpolateGaps, dailyTickFormatter, fmtLightning } from '../utils/chartHelpers'
+import { interpolateGaps, dailyTickFormatter, fmtLightning, yearlyTicks } from '../utils/chartHelpers'
 
 const LIGHTNING_STROKE = '#f5a623'
 const BAND_FILL = 'rgba(245, 166, 35, 0.18)'
@@ -103,11 +103,12 @@ export default function LightningChartPanel({
           <XAxis
             dataKey="label"
             tick={{ fill: '#aaa', fontSize: compact ? 10 : (isDaily ? 11 : 13) }}
+            ticks={isYearly ? yearlyTicks(chartData) : undefined}
             interval={isDaily ? 'preserveStartEnd' : 0}
             tickFormatter={isDaily ? dailyTickFormatter : undefined}
             angle={isYearly ? -45 : 0}
             textAnchor={isYearly ? 'end' : 'middle'}
-            height={isYearly ? 50 : 25}
+            height={isYearly ? 45 : 25}
           />
           <YAxis
             domain={[0, 'auto']}
