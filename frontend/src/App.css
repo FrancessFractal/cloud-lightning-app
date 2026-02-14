@@ -1,35 +1,196 @@
+/* --- Layout --- */
 .app {
-  max-width: 600px;
+  max-width: 720px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  padding: 2rem 1.5rem 4rem;
 }
 
 h1 {
-  font-size: 2.8em;
-  margin-bottom: 0.5em;
+  font-size: 2.6em;
+  margin-bottom: 0.15em;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  text-align: center;
 }
 
+h2 {
+  font-size: 1.2em;
+  margin: 0 0 0.5em;
+}
+
+.subtitle {
+  text-align: center;
+  color: #999;
+  margin-bottom: 2rem;
+  font-size: 0.95em;
+}
+
+/* --- Cards --- */
 .card {
-  padding: 2em;
-  margin: 1.5em 0;
+  padding: 1.5em;
+  margin-bottom: 1.25em;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.message {
-  font-size: 1.4em;
-  font-weight: 500;
+.chart-card {
+  padding-bottom: 1em;
+}
+
+/* --- Search form --- */
+.search-form {
+  display: flex;
+  gap: 0.5em;
+}
+
+.search-form input {
+  flex: 1;
+  padding: 0.6em 1em;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: 0.95em;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-form input:focus {
+  border-color: #667eea;
+}
+
+.search-form button {
+  padding: 0.6em 1.4em;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95em;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.search-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.search-form button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* --- Location badge --- */
+.location-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.6em 1em;
+  margin-bottom: 1.25em;
+  border-radius: 8px;
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  font-size: 0.85em;
+  color: #b0b8e8;
+  word-break: break-word;
+}
+
+.location-icon {
+  font-size: 1.1em;
+  flex-shrink: 0;
+}
+
+/* --- Station list --- */
+.station-list {
+  list-style: none;
+  padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.station-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.7em 1em;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  font-size: 0.9em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.station-btn:hover:not(:disabled) {
+  background: rgba(102, 126, 234, 0.12);
+  border-color: rgba(102, 126, 234, 0.3);
+}
+
+.station-btn.active {
+  background: rgba(102, 126, 234, 0.18);
+  border-color: #667eea;
+}
+
+.station-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.station-name {
+  font-weight: 500;
+}
+
+.station-dist {
+  color: #888;
+  font-size: 0.85em;
+  flex-shrink: 0;
+  margin-left: 1em;
+}
+
+/* --- Loading & error states --- */
+.loading {
+  text-align: center;
+  color: #999;
+  padding: 1em 0;
+  font-size: 0.95em;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #667eea;
+  border-radius: 50%;
+  margin: 0.8em auto 0;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error {
+  color: #e57373;
+  margin-top: 0.5em;
+  font-size: 0.9em;
 }
 
 .hint {
-  color: #888;
-  font-size: 0.9em;
+  color: #777;
+  font-size: 0.85em;
+  margin: 0 0 0.6em;
+}
+
+/* --- Recharts overrides --- */
+.recharts-default-tooltip {
+  border-radius: 8px !important;
 }
