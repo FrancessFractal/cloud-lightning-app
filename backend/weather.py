@@ -283,7 +283,7 @@ def _prefetch_csvs(station_ids: list[str]) -> None:
         except Exception:
             pass  # individual station failures are handled later
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=3) as pool:
         futures = [pool.submit(_fetch, p, s) for p, s in tasks]
         for f in as_completed(futures):
             f.result()  # propagate unexpected exceptions
