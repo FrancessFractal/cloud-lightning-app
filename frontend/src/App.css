@@ -1,8 +1,15 @@
 /* --- Layout --- */
 .app {
-  max-width: 780px;
+  width: 100%;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 2rem 1.5rem 4rem;
+  padding: 2rem 2rem 4rem;
+}
+
+@media (max-width: 640px) {
+  .app {
+    padding: 1.25rem 1rem 3rem;
+  }
 }
 
 h1 {
@@ -877,4 +884,149 @@ h3 {
 /* --- Recharts overrides --- */
 .recharts-default-tooltip {
   border-radius: 8px !important;
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 640px) {
+  h1 {
+    font-size: 1.6em;
+  }
+
+  .subtitle {
+    font-size: 0.85em;
+    margin-bottom: 1em;
+  }
+
+  .tab-bar {
+    gap: 0;
+  }
+
+  .tab-btn {
+    flex: 1;
+    text-align: center;
+    padding: 0.5em 0.6em;
+    font-size: 0.85em;
+  }
+
+  .search-form {
+    flex-direction: column;
+  }
+
+  .search-form button {
+    width: 100%;
+  }
+
+  .insight-cards {
+    gap: 0.4em;
+  }
+
+  .insight-card {
+    flex: 1 1 100px;
+    padding: 0.6em 0.4em;
+  }
+
+  .insight-value {
+    font-size: 1.1em;
+  }
+
+  .insight-label {
+    font-size: 0.68em;
+  }
+
+  .granularity-toggle {
+    gap: 0.2em;
+  }
+
+  .res-btn {
+    padding: 0.4em 0.7em;
+    font-size: 0.8em;
+  }
+
+  .chart-panel {
+    padding: 0.8em 0.6em;
+  }
+
+  .card {
+    padding: 1em;
+  }
+
+  .confidence-badge {
+    padding: 0.7em 0.8em;
+  }
+
+  .quality-label {
+    flex: 0 0 100px;
+    font-size: 0.78em;
+  }
+
+  .quality-detail {
+    flex: 0 0 55px;
+    font-size: 0.75em;
+  }
+
+  .explorer-stats {
+    flex-direction: column;
+    gap: 0.5em;
+  }
+
+  .stat {
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.5em;
+    padding: 0.6em;
+  }
+
+  .stat-value {
+    font-size: 1.3em;
+  }
+
+  .explorer-map-container {
+    height: 280px;
+  }
+
+  .map-container {
+    height: 180px;
+  }
+
+  .drawer-table {
+    font-size: 0.78em;
+  }
+
+  .drawer-table th,
+  .drawer-table td {
+    padding: 0.35em 0.4em;
+  }
+}
+
+@media (max-width: 420px) {
+  .insight-cards {
+    flex-direction: column;
+  }
+
+  .insight-card {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5em 0.8em;
+  }
+
+  .insight-label {
+    order: -1;
+    font-size: 0.8em;
+  }
+
+  .quality-row {
+    flex-wrap: wrap;
+  }
+
+  .quality-label {
+    flex: 1 1 100%;
+    margin-left: 1.2em;
+  }
+
+  .quality-track {
+    flex: 1;
+    margin-left: 1.2em;
+  }
 }
