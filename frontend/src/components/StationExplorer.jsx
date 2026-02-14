@@ -1,4 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+const SWEDEN_CENTER = [63.0, 16.5]
+const SWEDEN_BOUNDS = L.latLngBounds([55.3, 10.5], [69.1, 24.2])
+
+const COLOR_BOTH = { color: '#7cc47f', fillColor: '#7cc47f', fillOpacity: 0.55, weight: 1.5 }
+const COLOR_CLOUD = { color: '#f5a623', fillColor: '#f5a623', fillOpacity: 0.55, weight: 1.5 }
+
+function FitSweden() {
+  const map = useMap()
+  useMemo(() => {
+    map.fitBounds(SWEDEN_BOUNDS, { padding: [10, 10] })
+  }, [map])
+  return null
+}
 
 export default function StationExplorer() {
   const [stations, setStations] = useState([])
@@ -51,6 +68,53 @@ export default function StationExplorer() {
             <span className="stat-label">Cloud only</span>
           </div>
         </div>
+      </div>
+
+      {/* Station map */}
+      <div className="card explorer-map-card">
+        <h2>Station locations</h2>
+        <div className="explorer-map-legend">
+          <span className="explorer-legend-item">
+            <span className="explorer-dot" style={{ background: COLOR_BOTH.fillColor }} />
+            Cloud + Lightning
+          </span>
+          <span className="explorer-legend-item">
+            <span className="explorer-dot" style={{ background: COLOR_CLOUD.fillColor }} />
+            Cloud only
+          </span>
+        </div>
+        <div className="explorer-map-container">
+          <MapContainer
+            center={SWEDEN_CENTER}
+            zoom={4}
+            scrollWheelZoom
+            style={{ height: '100%', width: '100%', borderRadius: 8 }}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <FitSweden />
+
+            {filtered.map((s) => (
+              <CircleMarker
+                key={s.id}
+                center={[s.latitude, s.longitude]}
+                radius={6}
+                pathOptions={s.has_weather_data ? COLOR_BOTH : COLOR_CLOUD}
+              >
+                <Tooltip>
+                  <strong>{s.name}</strong><br />
+                  ID: {s.id}<br />
+                  {s.has_weather_data ? 'Cloud + Lightning' : 'Cloud only'}
+                </Tooltip>
+              </CircleMarker>
+            ))}
+          </MapContainer>
+        </div>
+        <p className="hint" style={{ marginTop: '0.5em' }}>
+          Showing {filtered.length} of {stations.length} stations
+        </p>
       </div>
 
       <div className="card">

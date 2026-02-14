@@ -367,27 +367,33 @@ h3 {
   line-height: 1;
 }
 
-.confidence-score {
-  font-weight: 700;
-  font-size: 1.1em;
-}
-
 /* Quality factor bars */
 .quality-bars {
   display: flex;
   flex-direction: column;
-  gap: 0.35em;
+  gap: 0.4em;
 }
 
 .quality-row {
   display: flex;
   align-items: center;
-  gap: 0.6em;
+  gap: 0.5em;
 }
 
+.quality-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-good { background: #7cc47f; }
+.dot-fair { background: #f5a623; }
+.dot-poor { background: #ef8b8b; }
+
 .quality-label {
-  flex: 0 0 130px;
-  font-size: 0.88em;
+  flex: 0 0 145px;
+  font-size: 0.85em;
   color: #aaa;
 }
 
@@ -409,12 +415,13 @@ h3 {
 .quality-fill.bar-medium { background: #f5a623; }
 .quality-fill.bar-low    { background: #ef8b8b; }
 
-.quality-pct {
-  flex: 0 0 32px;
+.quality-detail {
+  flex: 0 0 75px;
   text-align: right;
-  font-size: 0.85em;
+  font-size: 0.82em;
   color: #aaa;
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  white-space: nowrap;
 }
 
 .quality-meta {
@@ -666,6 +673,39 @@ h3 {
 
 .map-container {
   height: 220px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* --- Station explorer map --- */
+.explorer-map-card {
+  padding: 1.2em 1.5em;
+}
+
+.explorer-map-legend {
+  display: flex;
+  gap: 1.2em;
+  margin-bottom: 0.6em;
+}
+
+.explorer-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.82em;
+  color: #aaa;
+}
+
+.explorer-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.explorer-map-container {
+  height: 400px;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);

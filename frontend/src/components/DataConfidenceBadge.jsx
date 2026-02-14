@@ -1,19 +1,22 @@
 const LEVELS = {
-  high:   { label: 'High',   cls: 'badge-high',   symbol: '\u2714' }, // ✔
-  medium: { label: 'Medium', cls: 'badge-medium', symbol: '\u25CB' }, // ○
-  low:    { label: 'Low',    cls: 'badge-low',    symbol: '\u26A0' }, // ⚠
+  high:   { label: 'High',   cls: 'badge-high',   symbol: '\u2714' },
+  medium: { label: 'Medium', cls: 'badge-medium', symbol: '\u25CB' },
+  low:    { label: 'Low',    cls: 'badge-low',    symbol: '\u26A0' },
 }
 
-function scoreBar(value, label) {
+const DOT_CLS = { good: 'dot-good', fair: 'dot-fair', poor: 'dot-poor' }
+
+function factorRow(label, value, level, detail) {
   const pct = Math.round(Math.max(0, Math.min(100, value)))
-  const cls = pct >= 70 ? 'bar-high' : pct >= 40 ? 'bar-medium' : 'bar-low'
+  const barCls = pct >= 70 ? 'bar-high' : pct >= 40 ? 'bar-medium' : 'bar-low'
   return (
-    <div className="quality-row">
+    <div className="quality-row" key={label}>
+      <span className={`quality-dot ${DOT_CLS[level] || 'dot-poor'}`} />
       <span className="quality-label">{label}</span>
       <div className="quality-track">
-        <div className={`quality-fill ${cls}`} style={{ width: `${pct}%` }} />
+        <div className={`quality-fill ${barCls}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="quality-pct">{pct}%</span>
+      <span className="quality-detail">{detail}</span>
     </div>
   )
 }
@@ -21,7 +24,7 @@ function scoreBar(value, label) {
 export default function DataConfidenceBadge({ quality }) {
   if (!quality) return null
 
-  const { score, level, coverage_pct, depth_score, proximity_score, avg_distance_km, median_obs } = quality
+  const { level, coverage, depth, proximity, direction, median_obs } = quality
   const info = LEVELS[level] || LEVELS.low
 
   return (
@@ -31,27 +34,42 @@ export default function DataConfidenceBadge({ quality }) {
           <span className="confidence-symbol" aria-hidden="true">{info.symbol}</span>
           {' '}Data Quality: {info.label}
         </span>
-        <span className="confidence-score">{Math.round(score)}/100</span>
       </div>
 
       <div className="quality-bars">
-        {scoreBar(depth_score, 'Observation depth')}
-        {scoreBar(coverage_pct, 'Data coverage')}
-        {scoreBar(proximity_score, 'Station proximity')}
+        {factorRow(
+          'Data coverage',
+          coverage.value,
+          coverage.level,
+          `${coverage.value}%`,
+        )}
+        {factorRow(
+          'Observation depth',
+          depth.value,
+          depth.level,
+          `${depth.value}%`,
+        )}
+        {factorRow(
+          'Station proximity',
+          proximity.value,
+          proximity.level,
+          proximity.avg_km != null ? `${proximity.avg_km} km avg` : '',
+        )}
+        {factorRow(
+          'Directional coverage',
+          direction.value,
+          direction.level,
+          `${direction.spread_deg}\u00B0 spread`,
+        )}
       </div>
 
-      <div className="quality-meta">
-        {avg_distance_km != null && (
-          <span className="quality-meta-item">
-            Avg station distance: {avg_distance_km} km
-          </span>
-        )}
-        {median_obs > 0 && (
+      {median_obs > 0 && (
+        <div className="quality-meta">
           <span className="quality-meta-item">
             Median observations per point: {median_obs.toLocaleString()}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
